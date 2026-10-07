@@ -28,6 +28,8 @@ Dispatcher::Dispatcher( Emulator& emulator )
 {
   addEmuMethods( *this, emulator );
   addMemoryMethods( *this, emulator );
+  addRunMethods( *this, emulator );
+  addCpuMethods( *this, emulator );
 }
 
 Json Dispatcher::handle( Json const& request ) const

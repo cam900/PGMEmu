@@ -57,12 +57,15 @@ A request that failed:
 | `unknown_game` | `emu.load_game` was given a name with no `<name>.pgm` in the ROM directory, or a name that is not a set name. |
 | `load_failed` | A game could not be loaded: the file is not a valid `.pgm` ([pgm-format.md](pgm-format.md)), or the BIOS is missing or wrong. The message names the file and the fault. |
 | `no_cartridge` | The method needs a cartridge, and none is loaded. |
+| `not_loaded` | The method needs a running machine, and no game is loaded. |
+| `invalid_signal` | A condition names a signal the emulator does not have (§6, `emu.run_until`). |
 | `invalid_region` | No memory region of that name holds anything now. |
 | `invalid_range` | The bytes asked for run past the end of the region. |
 
-`unknown_method`, `unknown_game`, `load_failed`, `invalid_region` and `bad_request` mean what
-the simulator means by them. `no_cartridge` and `invalid_range` are the emulator's own; the
-simulator does not check a range.
+`unknown_method`, `unknown_game`, `load_failed`, `invalid_region`, `invalid_signal` and
+`bad_request` mean what the simulator means by them. `no_cartridge`, `not_loaded` and
+`invalid_range` are the emulator's own: the simulator does not check a range, and always has a
+machine.
 
 ## 5. Names shared with the simulator
 
@@ -77,16 +80,18 @@ unchanged.
 Takes no parameters.
 
 ```json
-{"id":1,"ok":true,"result":{"version":"devel","game_name":"orlegend"}}
+{"id":1,"ok":true,"result":{"version":"devel","game_name":"orlegend","total_ticks":844900,"frame":1}}
 ```
 
 | Field | Meaning |
 |---|---|
 | `version` | The emulator's version: the release tag it was built from, or `devel`. |
 | `game_name` | The short name of the loaded cartridge, `pgm` when the BIOS alone is loaded, or `null` before anything is. |
+| `total_ticks` | Master ticks (50 MHz) since the machine was powered up by loading the game; absent before a game is loaded. |
+| `frame` | Frame boundaries passed since then (`emu.run_frames`); absent before a game is loaded. |
 
-The simulator's other status fields (`running`, `total_ticks`, ...) are added as the state they
-describe comes to exist, under the simulator's names.
+The simulator's other status fields (`running`, ...) are added as the state they describe comes
+to exist, under the simulator's names.
 
 ### `emu.load_game` (alias `sim.load_game`)
 
@@ -101,6 +106,11 @@ Loads a game and the BIOS. Exactly one of the two parameters is given:
 {"id":2,"method":"emu.load_game","params":{"name":"orlegend"}}
 {"id":2,"ok":true,"result":{}}
 ```
+
+Loading powers a new machine up: work RAM and VRAM are zero, the raster is at its first dot,
+and the 68000 is held in reset for 100 master ticks, as the simulator's front end holds it. A
+`sim.reset` before anything runs takes the place of those 100 ticks, so that the scripts written
+for the simulator, which load and then reset, start the 68000 at the same moment.
 
 The ROM directory and the BIOS sources are given when the emulator is started
 (`pgmemu-cli --rom-dir DIR --bios PATH...`). The BIOS files are taken from the first BIOS source
@@ -152,8 +162,15 @@ Takes no parameters. Answers the names of the regions that hold something now, a
 | `CART_ARM_ROM` | EXT |
 | `CART_ARM_INT_ROM` | INT (the emulator's own name) |
 | `CART_IGS022_ROM` | I22 (the emulator's own name) |
+| `WORK_RAM` | 128 KB of 68000 work RAM, in the 68000's byte order |
+| `VIDEO_RAM` | 32 KB of IGS023 VRAM as the chip's 8-bit RAM holds it: the upper byte of each 68000 word at the odd address |
+| `PALETTE_RAM` | 8 KB of palette RAM, in the 68000's byte order |
+| `AUDIO_RAM` | The Z80's 64 KB, by Z80 address |
 
-Every region holds its ROM as the `.pgm` file does ([pgm-format.md §3](pgm-format.md#3-the-entry-table)),
+The RAM regions exist while a game is loaded. Their layouts are the simulator's, so that the same
+read of either answers bytes that can be compared one for one.
+
+Every ROM region holds its ROM as the `.pgm` file does ([pgm-format.md §3](pgm-format.md#3-the-entry-table)),
 and address 0 is the ROM's first byte, whatever its mapping. These are the names the simulator's
 `memory.read` accepts, and the two answer the same bytes for the same request. The simulator's
 own `memory.list_regions` lists older names that its `memory.read` refuses; the emulator lists the
@@ -175,3 +192,126 @@ names that work.
 `data_hex` holds two lowercase hex digits per byte, in address order.
 
 Errors: `invalid_region`, `invalid_range`, `bad_request`.
+
+### `emu.reset` (alias `sim.reset`)
+
+| Param | Meaning |
+|---|---|
+| `cycles` | Master ticks to hold the reset line for. |
+
+Holds the reset line for `cycles` master ticks, running the raster on through them, and lets it
+go. The 68000 fetches its vectors as soon as the machine runs. It answers `{}` once the ticks
+have passed, as the simulator's does. Reset clears the IGS026's latches and the IGS023's
+interrupts. It leaves RAM, the raster and the RTC alone, as the RTL does.
+
+Errors: `not_loaded`, `bad_request`.
+
+### `emu.run_frames` (alias `sim.run_frames`)
+
+| Param | Meaning |
+|---|---|
+| `count` | Frame boundaries to run through. |
+
+A frame boundary is where the simulator's `vblank` output rises: 11 master ticks after line 0
+of the raster begins. A run stops between instructions, so it ends at most one instruction past
+the boundary.
+
+```json
+{"id":4,"ok":true,"result":{"reason":"completed","ticks_executed":50687930,"frames_executed":60}}
+```
+
+| Field | Meaning |
+|---|---|
+| `reason` | `completed`; `breakpoint` when the 68000 reached a breakpoint first; `halted` when it halted on a double bus fault. |
+| `ticks_executed` | Master ticks the run took. |
+| `frames_executed` | Frame boundaries it passed. |
+
+Errors: `not_loaded`, `bad_request`.
+
+### `emu.run_cycles` (alias `sim.run_cycles`)
+
+| Param | Meaning |
+|---|---|
+| `count` | Master ticks (50 MHz) to run for, as the simulator counts them. |
+
+Answers as `emu.run_frames` does.
+
+### `emu.run_until` (alias `sim.run_until`)
+
+| Param | Meaning |
+|---|---|
+| `condition` | When to stop, below. It is checked after each instruction. |
+| `timeout_cycles` | Master ticks after which to give up; 1,000,000,000 (20 s of emulated time) when left out. |
+
+Answers as `emu.run_frames` does, with `reason` `condition_met`, or `timeout` when the time ran
+out first.
+
+The conditions are the simulator's:
+
+| `type` | Fields | Holds when |
+|---|---|---|
+| `cpu_pc_equals` | `value` | the 68000's next instruction is at `value` |
+| `cpu_pc_in_range` | `start`, `end` (or `value`, `value2`) | `start` <= pc < `end` |
+| `cpu_pc_out_of_range` | as above | pc < `start` or pc >= `end` |
+| `signal_equals`, `signal_not_equals`, `signal_less_than`, `signal_less_equal`, `signal_greater_than`, `signal_greater_equal` | `signal`, `value` | the signal compares so with `value` |
+| `and`, `or` | `children`: conditions | all hold, or any holds |
+| `not` | `children`: one condition | it does not hold |
+
+| Signal | Value |
+|---|---|
+| `vblank` | 1 in the first 40 lines of the raster |
+| `hblank` | 1 in the first 192 dots of a line |
+| `line` | The raster's line, 0 to 263, 0 being where vblank begins (the emulator's own) |
+| `frame` | Frame boundaries passed since power-up (the emulator's own) |
+
+The simulator also resolves names of RTL signals through Verilator. The emulator has no such
+signals and answers `invalid_signal` for them.
+
+Errors: `not_loaded`, `invalid_signal`, `bad_request`.
+
+### `cpu.get_state`
+
+Takes no parameters, or `cpu`, which may only be `m68k` until the Z80 and the ARM7 are emulated.
+
+```json
+{"id":5,"ok":true,"result":{"pc":4166,"registers":[0,4294967295,"..."],"disasm":"move.l  D2, -(A7)",
+  "d":[0,4294967295,0,0,0,0,0,0],"a":[8394064,8401830,0,0,0,0,8519628,8519608],
+  "sr":8196,"usp":0,"ssp":8519608,"stopped":false,"halted":false}}
+```
+
+| Field | Meaning |
+|---|---|
+| `pc` | The address of the instruction the 68000 executes next. |
+| `registers` | The simulator's 17 longs, in fx68k's order: D0-D7, A0-A6, then the user and the supervisor stack pointer. |
+| `disasm` | The instruction at `pc`. |
+| `d`, `a` | The data and address registers; A7 is the stack pointer in use. |
+| `sr`, `usp`, `ssp` | Status register and the two stack pointers. |
+| `stopped`, `halted` | Whether a STOP is waiting for an interrupt, and whether the 68000 has halted. |
+
+Errors: `not_loaded`.
+
+### `cpu.disassemble`
+
+| Param | Meaning |
+|---|---|
+| `address` | Where to start. |
+| `count` | Instructions to disassemble, at most 1000. |
+
+Answers an array of `{"address", "length", "text"}`, one per instruction, read as the 68000
+would read them without clocking any device.
+
+Errors: `not_loaded`, `bad_request`.
+
+### `debug.breakpoint.add`, `debug.breakpoint.remove`
+
+| Param | Meaning |
+|---|---|
+| `address` | The instruction address. |
+
+A run reaching a breakpoint stops before the instruction and answers `reason` `breakpoint`. The
+next run executes that instruction rather than stopping at it again. `add` and `remove` answer
+`{}`.
+
+### `debug.breakpoint.list`
+
+Answers the addresses of the breakpoints, ascending.

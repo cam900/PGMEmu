@@ -64,8 +64,7 @@ std::expected<void, LoadFailure> Emulator::loadGameByName( std::string_view name
     {
       return std::unexpected( bios.error() );
     }
-    mBios = std::move( *bios );
-    mCartridge.reset();
+    install( std::move( *bios ), std::nullopt );
     return {};
   }
 
@@ -92,9 +91,27 @@ std::expected<void, LoadFailure> Emulator::loadGameFromFile( std::filesystem::pa
   {
     return std::unexpected( bios.error() );
   }
-  mBios = std::move( *bios );
-  mCartridge = std::move( *cartridge );
+  install( std::move( *bios ), std::move( *cartridge ) );
   return {};
+}
+
+void Emulator::install( cart::Bios bios, std::optional<cart::PgmImage> cartridge )
+{
+  // The machine reads the ROMs in place, so it goes before they are replaced.
+  mMachine.reset();
+  mBios = std::move( bios );
+  mCartridge = std::move( cartridge );
+  mMachine = std::make_unique<machine::Machine>( *mBios, mCartridge ? &*mCartridge : nullptr );
+}
+
+machine::Machine* Emulator::machine()
+{
+  return mMachine.get();
+}
+
+machine::Machine const* Emulator::machine() const
+{
+  return mMachine.get();
 }
 
 std::optional<std::string> Emulator::gameName() const
@@ -128,6 +145,13 @@ std::vector<MemoryRegion> Emulator::memoryRegions() const
     regions.push_back( MemoryRegion{ .name = "BIOS_PROG_ROM", .bytes = mBios->program().data } );
     regions.push_back( MemoryRegion{ .name = "BIOS_TILE_ROM", .bytes = mBios->tiles().data } );
     regions.push_back( MemoryRegion{ .name = "BIOS_MUSIC_ROM", .bytes = mBios->music().data } );
+  }
+  if ( mMachine )
+  {
+    regions.push_back( MemoryRegion{ .name = "WORK_RAM", .bytes = mMachine->workRam() } );
+    regions.push_back( MemoryRegion{ .name = "VIDEO_RAM", .bytes = mMachine->videoRam() } );
+    regions.push_back( MemoryRegion{ .name = "PALETTE_RAM", .bytes = mMachine->paletteRam() } );
+    regions.push_back( MemoryRegion{ .name = "AUDIO_RAM", .bytes = mMachine->z80Ram() } );
   }
   if ( mCartridge )
   {

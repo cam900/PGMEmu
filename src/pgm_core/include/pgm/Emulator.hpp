@@ -2,10 +2,12 @@
 
 #include "pgm/cart/Bios.hpp"
 #include "pgm/cart/PgmImage.hpp"
+#include "pgm/machine/Machine.hpp"
 
 #include <cstdint>
 #include <expected>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -74,15 +76,26 @@ public:
   [[nodiscard]] cart::Bios const* bios() const;
   [[nodiscard]] cart::PgmImage const* cartridge() const;
 
+  /// The board the loaded game runs on, powered up when it was loaded; null
+  /// before a game is loaded.
+  [[nodiscard]] machine::Machine* machine();
+  [[nodiscard]] machine::Machine const* machine() const;
+
   /// Every region that holds something now, in a stable order.
   [[nodiscard]] std::vector<MemoryRegion> memoryRegions() const;
 
 private:
   [[nodiscard]] std::expected<cart::Bios, LoadFailure> loadBios() const;
 
+  /// Makes `bios` and `cartridge` the loaded game and powers a new board up
+  /// with them.
+  void install( cart::Bios bios, std::optional<cart::PgmImage> cartridge );
+
   Settings mSettings;
   std::optional<cart::Bios> mBios;
   std::optional<cart::PgmImage> mCartridge;
+  // Declared last, so that it goes before the ROMs it reads from.
+  std::unique_ptr<machine::Machine> mMachine;
 };
 
 } // namespace pgm

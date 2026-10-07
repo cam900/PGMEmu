@@ -27,8 +27,10 @@
 // 68000 and in fx68k.
 #define MOIRA_EMULATE_ADDRESS_ERROR true
 
-// Function code pins are not observed by anything on the PGM bus.
-#define MOIRA_EMULATE_FC false
+// Function codes. Nothing on the PGM bus decodes them, but the 68000 stores them
+// in the frame it stacks for an address error, so without them that frame is
+// wrong (SingleStepTests 68000).
+#define MOIRA_EMULATE_FC true
 
 // The 68020 instruction cache does not exist on a 68000.
 #define MOIRA_EMULATE_ICACHE false

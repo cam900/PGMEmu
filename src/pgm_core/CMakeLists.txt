@@ -4,13 +4,21 @@ add_library( pgm_core
   src/Version.cpp
   src/cart/Bios.cpp
   src/cart/PgmImage.cpp
+  src/control/CpuMethods.cpp
   src/control/Describe.cpp
   src/control/Dispatcher.cpp
   src/control/EmuMethods.cpp
   src/control/MemoryMethods.cpp
   src/control/Params.cpp
+  src/control/RunMethods.cpp
   src/cpu/MoiraConfigCheck.cpp
-  src/io/RomSources.cpp )
+  src/io/RomSources.cpp
+  src/machine/Bus68k.cpp
+  src/machine/Igs023.cpp
+  src/machine/Igs026.cpp
+  src/machine/M68k.cpp
+  src/machine/Machine.cpp
+  src/machine/V3021.cpp )
 
 add_library( pgm::core ALIAS pgm_core )
 

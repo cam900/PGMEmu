@@ -17,23 +17,6 @@ A session takes work by saying *build M<n> of docs/plans/milestones.md*. Every t
 Every milestone ends with an **exit** condition that can be checked without a person looking at
 a screen. That is why the control API and the headless runner come before most of the hardware.
 
-## M2: The 68000 and the bus; the BIOS runs
-
-*Delivers:*
-
-- The Moira adapter, with the 680x0 single-step suite passing.
-- `Bus68k`; work RAM; inputs and DIPs.
-- Register storage for IGS023, VRAM, palette and IGS026, without behaviour yet.
-- The scheduler with line, vblank and IRQ4 events; IRQ4 and IRQ6 as in `igs023.sv`.
-- Control API: `run_frames`, `run_until`, `cpu.get_state`, `cpu.disassemble`, breakpoints.
-- `scripts/compare-with-rtl.py`, first version: work RAM, VRAM and palette at frame N.
-
-*Exit:*
-
-- With the BIOS and no cartridge, work RAM, VRAM and palette equal the RTL simulation's at
-  frames 60 and 600.
-- PGMTest `system_basics` passes.
-
 ## M3: Video
 
 *Delivers:*

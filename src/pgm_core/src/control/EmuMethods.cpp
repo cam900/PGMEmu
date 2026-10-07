@@ -25,8 +25,14 @@ void addEmuMethods( Dispatcher& dispatcher, Emulator& emulator )
                   [&emulator]( Json const& /*params*/ ) -> Outcome
                   {
                     auto const game = emulator.gameName();
-                    return Json{ { "version", versionString() },
+                    Json status{ { "version", versionString() },
                                  { "game_name", game ? Json( *game ) : Json( nullptr ) } };
+                    if ( machine::Machine const* machine = emulator.machine() )
+                    {
+                      status["total_ticks"] = machine::masterTicks( machine->now() );
+                      status["frame"] = machine->frame();
+                    }
+                    return status;
                   } );
 
   dispatcher.add( "emu.load_game",

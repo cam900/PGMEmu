@@ -22,8 +22,17 @@ build/debug/src/pgm_cli/pgmemu-cli --info roms/orlegend.pgm
 build/debug/src/pgm_cli/pgmemu-cli --server --bios ../ROMS/pgm.zip --rom-dir roms
 ```
 
-Tests tagged `[roms]` read `roms/` and `../ROMS` and skip when they are absent;
-run `make-pgm.sh` first to have them run. Do not use the PGMBuilder binary in
+```sh
+./scripts/compare-with-rtl.py --frames 60 600       # memory against the RTL simulation
+./scripts/make-pgmtest.sh system_basics             # a PGMTest page as a BIOS program
+./scripts/compare-with-rtl.py --program build/tools/pgmtest-system_basics/pgm/pgm_p02s.u20 --frames 30
+./scripts/fetch-680x0-tests.sh                      # the SingleStepTests 68000 suite
+build/release/tests/pgm_tests "[cpu-suite]"         # Moira against it, about 15 s
+```
+
+Tests tagged `[roms]` read `roms/` and `../ROMS`, and `[cpu-suite]` reads
+`build/tools/680x0/`; both skip when their data is absent. The comparison with
+the RTL runs the simulator at about 1.4 frames per second. Do not use the PGMBuilder binary in
 `../PGMBuilder/out`: it may predate the format version this emulator reads.
 
 ```sh

@@ -104,8 +104,13 @@ TEST_CASE( "pgm loads the BIOS alone", "[control]" )
 
   REQUIRE( call( dispatcher, "emu.status" ).at( "result" ).at( "game_name" ) == "pgm" );
   REQUIRE( errorCode( call( dispatcher, "emu.cartridge_info" ) ) == "no_cartridge" );
-  REQUIRE( call( dispatcher, "memory.list_regions" ).at( "result" ) ==
-           Json::array( { "BIOS_PROG_ROM", "BIOS_TILE_ROM", "BIOS_MUSIC_ROM" } ) );
+  REQUIRE( call( dispatcher, "memory.list_regions" ).at( "result" ) == Json::array( { "BIOS_PROG_ROM",
+                                                                                      "BIOS_TILE_ROM",
+                                                                                      "BIOS_MUSIC_ROM",
+                                                                                      "WORK_RAM",
+                                                                                      "VIDEO_RAM",
+                                                                                      "PALETTE_RAM",
+                                                                                      "AUDIO_RAM" } ) );
 }
 
 TEST_CASE( "a load that fails says why, and leaves what was loaded", "[control]" )

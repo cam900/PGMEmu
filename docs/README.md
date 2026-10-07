@@ -55,6 +55,10 @@ it, never "at the end of the session".
 - [0007: Code style and toolchain are NGA's](decisions/0007-code-style-is-ngas.md)
 - [0008: The renderer is SDL_GPU](decisions/0008-the-renderer-is-sdl-gpu.md)
 - [0009: Moira's configuration is ours](decisions/0009-moira-configuration.md)
+- [0010: The ROM cache's timing is not reproduced](decisions/0010-rom-timing.md)
+
+### Hardware
+- [Differences](hardware/differences.md): where the emulator departs from the RTL, and the RTL from the board
 
 ### Plans
 - [Milestones](plans/milestones.md): what is still to be built, from cartridge loading to protected games

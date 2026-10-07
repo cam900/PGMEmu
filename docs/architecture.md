@@ -37,8 +37,9 @@ RAM. Everything else is a client of it. The boundary is drawn for three reasons:
 ## Emulated time
 
 The RTL clocks the whole board from one 50 MHz clock through fractional clock enables. The
-emulator keeps the same arrangement. Time is a 64-bit count of 50 MHz ticks, and each clock
-domain is the RTL's own ratio of it:
+emulator keeps the same arrangement. Time is a 64-bit count of 10 ns units, half a master tick:
+the largest unit in which both the 68000's and the pixel clock's periods are whole (5 and 10
+units). Each clock domain is the RTL's own ratio of the master clock:
 
 | Domain | Ratio of 50 MHz | Frequency |
 |---|---|---|
@@ -49,12 +50,17 @@ domain is the RTL's own ratio of it:
 | ARM7 | per game, from `PGM.sv` | 20 to 33.87 MHz |
 
 Because the ratios are the RTL's, a timing difference against the simulation is a bug in the
-emulator, not rounding.
+emulator, not rounding. The clocks with ratios that do not divide evenly are counted in closed
+form from master ticks, as `jtframe_frac_cen` counts them, so a device asks how many pulses of
+its clock have passed instead of being stepped through each one.
 
 **The 68k leads and everything else catches up.**
 
-1. The 68k runs in slices that end at the next scheduled event: a line boundary, IRQ4, vblank,
-   sprite DMA, or a timer.
+1. The 68k runs an instruction at a time. Before each one the raster is brought up to the
+   present, so the interrupt lines it sees are those of that moment. Moira calls back before
+   every bus cycle, so a cycle reaches its device at the time the 68000 makes it. A 68000
+   stopped by STOP skips straight to the next raster event, which is the only thing that can
+   wake it.
 2. The Z80, the ICS2115, the ARM7 and the video are brought up to the 68k's present before any
    access that could observe or change them. That covers a latch read or write, the Z80 RAM
    window, a bus request, protection shared RAM, and a video register read such as the line
