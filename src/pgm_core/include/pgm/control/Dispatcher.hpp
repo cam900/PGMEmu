@@ -1,5 +1,7 @@
 #pragma once
 
+#include "pgm/Emulator.hpp"
+
 #include <nlohmann/json.hpp>
 
 #include <expected>
@@ -32,11 +34,15 @@ using Outcome = std::expected<Json, Error>;
 /// The one place every capability of the emulator is reached through, whatever
 /// the transport (docs/decisions/0005-one-control-api.md). It takes a request
 /// object and answers a response object; framing, sockets and MCP belong to the
-/// transports in pgm_server.
+/// transports in pgm_server. Every method is specified in
+/// docs/spec/control-protocol.md.
 class Dispatcher
 {
 public:
-  Dispatcher();
+  using Handler = std::function<Outcome( Json const& params )>;
+
+  /// Answers requests about `emulator`, which must outlive the dispatcher.
+  explicit Dispatcher( Emulator& emulator );
 
   /// Answers one request. Never throws and always answers: a malformed request
   /// is answered with a `bad_request` error, not refused.
@@ -45,15 +51,14 @@ public:
   /// Every method name a request may use, aliases included, in a stable order.
   [[nodiscard]] std::vector<std::string> methodNames() const;
 
-private:
-  using Handler = std::function<Outcome( Json const& params )>;
-
+  /// Makes `name` a method answered by `handler`.
   void add( std::string_view name, Handler handler );
 
   /// Makes `alias` answer exactly as `name` does. The RTL simulator's `sim.*`
   /// names are aliases of the emulator's `emu.*`, so one script drives both.
   void alias( std::string_view alias, std::string_view name );
 
+private:
   std::unordered_map<std::string, Handler> mHandlers;
 };
 

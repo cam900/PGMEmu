@@ -21,9 +21,13 @@ cmake --preset release && cmake --build --preset release
 
 ## Running
 
+Games are `.pgm` images. `scripts/make-pgm.sh` builds them into `roms/` from the MAME sets in
+`../ROMS`, using PGMBuilder from `../PGMBuilder`.
+
 ```sh
-build/release/src/pgm_app/pgmemu              # the desktop application
-build/release/src/pgm_cli/pgmemu-cli --server # JSON-lines control on stdio
+build/release/src/pgm_app/pgmemu                                  # the desktop application
+build/release/src/pgm_cli/pgmemu-cli --info roms/orlegend.pgm     # describe an image
+build/release/src/pgm_cli/pgmemu-cli --server --bios ../ROMS/pgm.zip --rom-dir roms
 ```
 
 The control protocol is [docs/spec/control-protocol.md](docs/spec/control-protocol.md).

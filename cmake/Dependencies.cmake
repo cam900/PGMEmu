@@ -25,7 +25,18 @@ FetchContent_Declare( nlohmann_json
   DOWNLOAD_EXTRACT_TIMESTAMP TRUE
   SYSTEM )
 
-FetchContent_MakeAvailable( CLI11 spdlog nlohmann_json )
+# Reads the BIOS out of `pgm.zip`, and computes the CRC-32s ROMs are known by.
+set( BUILD_EXAMPLES OFF CACHE BOOL "" FORCE )
+set( BUILD_FUZZERS  OFF CACHE BOOL "" FORCE )
+set( BUILD_TESTS    OFF CACHE BOOL "" FORCE )
+set( INSTALL_PROJECT OFF CACHE BOOL "" FORCE )
+FetchContent_Declare( miniz
+  GIT_REPOSITORY https://github.com/richgel999/miniz.git
+  GIT_TAG        3.1.2
+  GIT_SHALLOW    TRUE
+  SYSTEM )
+
+FetchContent_MakeAvailable( CLI11 spdlog nlohmann_json miniz )
 
 if( PGM_BUILD_APP )
   # Static, so that the application carries the SDL it was built and tested

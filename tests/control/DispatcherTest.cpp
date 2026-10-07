@@ -21,7 +21,8 @@ std::string errorCode( Json const& response )
 
 TEST_CASE( "a request is answered under its id with its result", "[control]" )
 {
-  Dispatcher const dispatcher;
+  pgm::Emulator emulator{ pgm::Settings{} };
+  Dispatcher const dispatcher{ emulator };
 
   auto const response = dispatcher.handle( Json::parse( R"({"id":7,"method":"emu.status","params":{}})" ) );
 
@@ -32,7 +33,8 @@ TEST_CASE( "a request is answered under its id with its result", "[control]" )
 
 TEST_CASE( "a request built in C++ is answered as a parsed one is", "[control]" )
 {
-  Dispatcher const dispatcher;
+  pgm::Emulator emulator{ pgm::Settings{} };
+  Dispatcher const dispatcher{ emulator };
 
   // `1` here is a signed int, which the JSON library stores differently from
   // the unsigned it parses `1` into.
@@ -44,7 +46,8 @@ TEST_CASE( "a request built in C++ is answered as a parsed one is", "[control]" 
 
 TEST_CASE( "params may be left out", "[control]" )
 {
-  Dispatcher const dispatcher;
+  pgm::Emulator emulator{ pgm::Settings{} };
+  Dispatcher const dispatcher{ emulator };
 
   auto const response = dispatcher.handle( Json::parse( R"({"id":1,"method":"emu.status"})" ) );
 
@@ -53,7 +56,8 @@ TEST_CASE( "params may be left out", "[control]" )
 
 TEST_CASE( "the RTL simulator's sim.* names answer as emu.* does", "[control]" )
 {
-  Dispatcher const dispatcher;
+  pgm::Emulator emulator{ pgm::Settings{} };
+  Dispatcher const dispatcher{ emulator };
 
   auto const viaSim = dispatcher.handle( Json::parse( R"({"id":2,"method":"sim.status"})" ) );
   auto const viaEmu = dispatcher.handle( Json::parse( R"({"id":2,"method":"emu.status"})" ) );
@@ -63,7 +67,8 @@ TEST_CASE( "the RTL simulator's sim.* names answer as emu.* does", "[control]" )
 
 TEST_CASE( "an unknown method is answered with unknown_method under the request's id", "[control]" )
 {
-  Dispatcher const dispatcher;
+  pgm::Emulator emulator{ pgm::Settings{} };
+  Dispatcher const dispatcher{ emulator };
 
   auto const response = dispatcher.handle( Json::parse( R"({"id":3,"method":"emu.nonsense"})" ) );
 
@@ -74,7 +79,8 @@ TEST_CASE( "an unknown method is answered with unknown_method under the request'
 
 TEST_CASE( "a malformed request is answered with bad_request, not refused", "[control]" )
 {
-  Dispatcher const dispatcher;
+  pgm::Emulator emulator{ pgm::Settings{} };
+  Dispatcher const dispatcher{ emulator };
 
   SECTION( "not an object: answered under id 0" )
   {
@@ -121,7 +127,8 @@ TEST_CASE( "a malformed request is answered with bad_request, not refused", "[co
 
 TEST_CASE( "the method names are listed in a stable order, aliases included", "[control]" )
 {
-  Dispatcher const dispatcher;
+  pgm::Emulator emulator{ pgm::Settings{} };
+  Dispatcher const dispatcher{ emulator };
 
   auto const names = dispatcher.methodNames();
 

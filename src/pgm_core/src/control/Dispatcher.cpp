@@ -1,6 +1,6 @@
 #include "pgm/control/Dispatcher.hpp"
 
-#include "pgm/Version.hpp"
+#include "Methods.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -22,23 +22,12 @@ Json resultResponse( std::uint64_t id, Json result )
   return Json{ { "id", id }, { "ok", true }, { "result", std::move( result ) } };
 }
 
-Error badRequest( std::string message )
-{
-  return Error{ .code = "bad_request", .message = std::move( message ) };
-}
-
-Outcome status( Json const& /*params*/ )
-{
-  return Json{ { "version", versionString() } };
-}
-
 } // namespace
 
-Dispatcher::Dispatcher()
+Dispatcher::Dispatcher( Emulator& emulator )
 {
-  add( "emu.status", status );
-
-  alias( "sim.status", "emu.status" );
+  addEmuMethods( *this, emulator );
+  addMemoryMethods( *this, emulator );
 }
 
 Json Dispatcher::handle( Json const& request ) const
@@ -51,21 +40,16 @@ Json Dispatcher::handle( Json const& request ) const
     return errorResponse( 0, badRequest( "Request must be a JSON object" ) );
   }
 
-  // Any non-negative integer is an id. Parsed text holds one as unsigned, but a
-  // request built in C++ from an `int` holds it as signed, so the sign of the
-  // value is what is checked, not how it is stored.
-  auto const idField = request.find( "id" );
-  if ( idField == request.end() || !idField->is_number_integer() ||
-       ( !idField->is_number_unsigned() && idField->get<std::int64_t>() < 0 ) )
+  auto const id = requireUnsigned( request, "id" );
+  if ( !id )
   {
-    return errorResponse( 0, badRequest( "Missing or invalid field: id" ) );
+    return errorResponse( 0, id.error() );
   }
-  auto const id = idField->get<std::uint64_t>();
 
   auto const methodField = request.find( "method" );
   if ( methodField == request.end() || !methodField->is_string() )
   {
-    return errorResponse( id, badRequest( "Missing or invalid field: method" ) );
+    return errorResponse( *id, badRequest( "Missing or invalid field: method" ) );
   }
   auto const& method = methodField->get_ref<std::string const&>();
 
@@ -75,21 +59,21 @@ Json Dispatcher::handle( Json const& request ) const
   bool const hasParams = paramsField != request.end();
   if ( hasParams && !paramsField->is_object() )
   {
-    return errorResponse( id, badRequest( "Field params must be an object" ) );
+    return errorResponse( *id, badRequest( "Field params must be an object" ) );
   }
 
   auto const handler = mHandlers.find( method );
   if ( handler == mHandlers.end() )
   {
-    return errorResponse( id, Error{ .code = "unknown_method", .message = "Unknown method: " + method } );
+    return errorResponse( *id, Error{ .code = "unknown_method", .message = "Unknown method: " + method } );
   }
 
   auto outcome = handler->second( hasParams ? *paramsField : EMPTY_PARAMS );
   if ( !outcome )
   {
-    return errorResponse( id, outcome.error() );
+    return errorResponse( *id, outcome.error() );
   }
-  return resultResponse( id, std::move( *outcome ) );
+  return resultResponse( *id, std::move( *outcome ) );
 }
 
 std::vector<std::string> Dispatcher::methodNames() const

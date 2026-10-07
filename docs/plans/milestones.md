@@ -17,21 +17,6 @@ A session takes work by saying *build M<n> of docs/plans/milestones.md*. Every t
 Every milestone ends with an **exit** condition that can be checked without a person looking at
 a screen. That is why the control API and the headless runner come before most of the hardware.
 
-## M1: Cartridge and BIOS
-
-*Delivers:*
-
-- The `.pgm` v0x0021 reader (header, entries, regions, strings), and
-  `docs/spec/pgm-format.md` written from `../PGMBuilder/pgm.hpp`.
-- The BIOS loader, from a zip or a directory.
-- `pgmemu-cli --info file.pgm`.
-- `memory.read` and `memory.list_regions` over the ROM regions.
-- `scripts/make-pgm.sh`, which builds the test images from `../ROMS` with PGMBuilder; the images
-  are never committed.
-
-*Exit:* every image built from `../ROMS` is read without error, and its regions' CRCs match the
-CRCs PGMBuilder lists for that set.
-
 ## M2: The 68000 and the bus; the BIOS runs
 
 *Delivers:*

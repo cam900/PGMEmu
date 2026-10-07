@@ -2,6 +2,7 @@
 
 #include "ScreenTexture.hpp"
 
+#include "pgm/Emulator.hpp"
 #include "pgm/control/Dispatcher.hpp"
 
 #include <SDL3/SDL_gpu.h>
@@ -53,6 +54,7 @@ private:
   std::unique_ptr<ScreenTexture> mScreen;
   std::vector<std::uint8_t> mFrame;
   bool mFrameChanged{ true };
+  Emulator mEmulator;
   control::Dispatcher mDispatcher;
   std::string mImguiIniPath;
   bool mQuit{};

@@ -16,7 +16,8 @@ namespace
 
 std::vector<Json> responsesTo( std::string const& input )
 {
-  Dispatcher const dispatcher;
+  pgm::Emulator emulator{ pgm::Settings{} };
+  Dispatcher const dispatcher{ emulator };
   JsonLinesServer const server{ dispatcher };
   std::istringstream in{ input };
   std::ostringstream out;

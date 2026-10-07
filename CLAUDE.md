@@ -16,9 +16,15 @@ the presets own `build/<preset>`. `-DPGM_BUILD_APP=OFF` at configure leaves out
 the desktop application and with it SDL3 and ImGui.
 
 ```sh
-build/debug/src/pgm_app/pgmemu                                        # desktop
-echo '{"id":1,"method":"emu.status"}' | build/debug/src/pgm_cli/pgmemu-cli --server
+./scripts/make-pgm.sh                       # build roms/*.pgm from ../ROMS with ../PGMBuilder
+build/debug/src/pgm_app/pgmemu              # desktop
+build/debug/src/pgm_cli/pgmemu-cli --info roms/orlegend.pgm
+build/debug/src/pgm_cli/pgmemu-cli --server --bios ../ROMS/pgm.zip --rom-dir roms
 ```
+
+Tests tagged `[roms]` read `roms/` and `../ROMS` and skip when they are absent;
+run `make-pgm.sh` first to have them run. Do not use the PGMBuilder binary in
+`../PGMBuilder/out`: it may predate the format version this emulator reads.
 
 ```sh
 ./scripts/format.sh          # format in place

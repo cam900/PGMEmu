@@ -1,0 +1,164 @@
+#include "pgm/Emulator.hpp"
+
+#include "pgm/io/RomSources.hpp"
+
+#include <spdlog/fmt/fmt.h>
+
+#include <algorithm>
+#include <array>
+#include <cctype>
+#include <system_error>
+#include <utility>
+
+namespace pgm
+{
+
+namespace
+{
+
+LoadFailure loadFailed( std::string message )
+{
+  return LoadFailure{ .kind = LoadFailure::Kind::LOAD_FAILED, .message = std::move( message ) };
+}
+
+bool isSetName( std::string_view name )
+{
+  return !name.empty() &&
+         std::ranges::all_of(
+             name, []( char c ) { return std::isalnum( static_cast<unsigned char>( c ) ) != 0 || c == '_'; } );
+}
+
+// The region names the RTL simulator's memory.read accepts, so that the same
+// request reads the same bytes from both. The cartridge's ARM internal ROM and
+// IGS022 data ROM have no name there and are named here in the same style.
+struct CartRegion
+{
+  std::string_view name;
+  cart::RomType type;
+};
+
+constexpr std::array<CartRegion, 8> CART_REGIONS{ { { .name = "CART_PROG_ROM", .type = cart::RomType::PRG },
+                                                    { .name = "CART_TILE_ROM", .type = cart::RomType::TLE },
+                                                    { .name = "CART_MUSIC_ROM", .type = cart::RomType::AUD },
+                                                    { .name = "CART_A_ROM", .type = cart::RomType::SPC },
+                                                    { .name = "CART_B_ROM", .type = cart::RomType::SPM },
+                                                    { .name = "CART_ARM_ROM", .type = cart::RomType::EXT },
+                                                    { .name = "CART_ARM_INT_ROM", .type = cart::RomType::INT },
+                                                    { .name = "CART_IGS022_ROM", .type = cart::RomType::I22 } } };
+
+} // namespace
+
+Emulator::Emulator( Settings settings ) : mSettings{ std::move( settings ) } {}
+
+std::expected<void, LoadFailure> Emulator::loadGameByName( std::string_view name )
+{
+  if ( !isSetName( name ) )
+  {
+    return std::unexpected( LoadFailure{ .kind = LoadFailure::Kind::UNKNOWN_GAME,
+                                         .message = fmt::format( "'{}' is not a set name", name ) } );
+  }
+  if ( name == BIOS_ONLY )
+  {
+    auto bios = loadBios();
+    if ( !bios )
+    {
+      return std::unexpected( bios.error() );
+    }
+    mBios = std::move( *bios );
+    mCartridge.reset();
+    return {};
+  }
+
+  std::filesystem::path const path = mSettings.romDirectory / fmt::format( "{}.pgm", name );
+  std::error_code failed;
+  if ( !std::filesystem::is_regular_file( path, failed ) )
+  {
+    return std::unexpected(
+        LoadFailure{ .kind = LoadFailure::Kind::UNKNOWN_GAME,
+                     .message = fmt::format( "no {}.pgm in {}", name, mSettings.romDirectory.string() ) } );
+  }
+  return loadGameFromFile( path );
+}
+
+std::expected<void, LoadFailure> Emulator::loadGameFromFile( std::filesystem::path const& path )
+{
+  auto cartridge = cart::PgmImage::read( path );
+  if ( !cartridge )
+  {
+    return std::unexpected( loadFailed( fmt::format( "{}: {}", path.string(), cartridge.error() ) ) );
+  }
+  auto bios = loadBios();
+  if ( !bios )
+  {
+    return std::unexpected( bios.error() );
+  }
+  mBios = std::move( *bios );
+  mCartridge = std::move( *cartridge );
+  return {};
+}
+
+std::optional<std::string> Emulator::gameName() const
+{
+  if ( mCartridge )
+  {
+    return mCartridge->shortName();
+  }
+  if ( mBios )
+  {
+    return std::string{ BIOS_ONLY };
+  }
+  return std::nullopt;
+}
+
+cart::Bios const* Emulator::bios() const
+{
+  return mBios ? &*mBios : nullptr;
+}
+
+cart::PgmImage const* Emulator::cartridge() const
+{
+  return mCartridge ? &*mCartridge : nullptr;
+}
+
+std::vector<MemoryRegion> Emulator::memoryRegions() const
+{
+  std::vector<MemoryRegion> regions;
+  if ( mBios )
+  {
+    regions.push_back( MemoryRegion{ .name = "BIOS_PROG_ROM", .bytes = mBios->program().data } );
+    regions.push_back( MemoryRegion{ .name = "BIOS_TILE_ROM", .bytes = mBios->tiles().data } );
+    regions.push_back( MemoryRegion{ .name = "BIOS_MUSIC_ROM", .bytes = mBios->music().data } );
+  }
+  if ( mCartridge )
+  {
+    for ( CartRegion const& region : CART_REGIONS )
+    {
+      if ( auto const rom = mCartridge->rom( region.type ) )
+      {
+        regions.push_back( MemoryRegion{ .name = region.name, .bytes = rom->data } );
+      }
+    }
+  }
+  return regions;
+}
+
+std::expected<cart::Bios, LoadFailure> Emulator::loadBios() const
+{
+  if ( mSettings.biosSources.empty() )
+  {
+    return std::unexpected( loadFailed( "no BIOS source is configured" ) );
+  }
+  auto sources = io::RomSources::open( mSettings.biosSources );
+  if ( !sources )
+  {
+    return std::unexpected( loadFailed( sources.error() ) );
+  }
+  auto bios = cart::Bios::load( *sources );
+  if ( !bios )
+  {
+    return std::unexpected( loadFailed( bios.error() ) );
+  }
+  return std::move( *bios );
+}
+
+} // namespace pgm

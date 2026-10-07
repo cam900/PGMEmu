@@ -102,8 +102,8 @@ How some of these modules work, and why:
 
 ## The cartridge
 
-The core reads the `.pgm` file PGMBuilder writes (version 0x0021, specified from
-`../PGMBuilder/pgm.hpp` in `docs/spec/pgm-format.md`), and a BIOS from `pgm.zip` or a directory.
+The core reads the `.pgm` file PGMBuilder writes ([spec/pgm-format.md](spec/pgm-format.md)), and a
+BIOS from `pgm.zip` or a directory.
 The two halves are separate because PGMBuilder leaves the BIOS out of every image.
 
 PGMBuilder has already decrypted the 68k program and the ARM external ROM, and descrambled

@@ -84,7 +84,7 @@ std::expected<std::unique_ptr<Application>, std::string> Application::create()
 
 Application::Application( SDL_Window* window, SDL_GPUDevice* device )
     : mWindow{ window }, mDevice{ device }, mScreen{ std::make_unique<ScreenTexture>( device ) },
-      mFrame{ makeTestPattern() }
+      mFrame{ makeTestPattern() }, mEmulator{ Settings{} }, mDispatcher{ mEmulator }
 {
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();

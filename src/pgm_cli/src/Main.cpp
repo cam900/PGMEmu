@@ -2,7 +2,10 @@
 // transport to the dispatcher and hands over. Everything testable lives in
 // pgm_core and pgm_server.
 
+#include "pgm/Emulator.hpp"
 #include "pgm/Version.hpp"
+#include "pgm/cart/PgmImage.hpp"
+#include "pgm/control/Describe.hpp"
 #include "pgm/control/Dispatcher.hpp"
 #include "pgm/server/JsonLinesServer.hpp"
 
@@ -12,21 +15,53 @@
 
 #include <cstdio>
 #include <exception>
+#include <filesystem>
 #include <iostream>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace
 {
+
+/// Prints what `emu.cartridge_info` would answer about the file at `path`.
+int printInfo( std::filesystem::path const& path )
+{
+  auto const image = pgm::cart::PgmImage::read( path );
+  if ( !image )
+  {
+    std::cerr << "pgmemu-cli: " << path.string() << ": " << image.error() << '\n';
+    return 1;
+  }
+  std::cout << pgm::control::describe( *image ).dump( 2 ) << '\n';
+  return 0;
+}
 
 int run( int argc, char** argv )
 {
   CLI::App app{ "Headless IGS PGM emulator", "pgmemu-cli" };
   app.set_version_flag( "--version", std::string{ pgm::versionString() } );
 
+  pgm::Settings settings;
+  app.add_option( "--bios",
+                  settings.biosSources,
+                  "A directory or zip the BIOS files are taken from; repeat to search several, first first" )
+      ->check( CLI::ExistingPath );
+  app.add_option( "--rom-dir", settings.romDirectory, "Where emu.load_game finds <name>.pgm" )
+      ->check( CLI::ExistingDirectory );
+
   bool server = false;
-  app.add_flag( "--server", server, "Answer JSON-lines requests on stdin, one response per line on stdout" );
+  auto* const serverFlag =
+      app.add_flag( "--server", server, "Answer JSON-lines requests on stdin, one response per line on stdout" );
+  std::filesystem::path info;
+  app.add_option( "--info", info, "Describe a .pgm file and exit" )->check( CLI::ExistingFile )->excludes( serverFlag );
 
   CLI11_PARSE( app, argc, argv );
+
+  if ( !info.empty() )
+  {
+    return printInfo( info );
+  }
 
   // stdout carries the protocol and nothing else, so every log line goes to
   // stderr; a client parsing stdout must never meet one.
@@ -38,7 +73,8 @@ int run( int argc, char** argv )
     return 1;
   }
 
-  pgm::control::Dispatcher const dispatcher;
+  pgm::Emulator emulator{ std::move( settings ) };
+  pgm::control::Dispatcher const dispatcher{ emulator };
   pgm::server::JsonLinesServer const transport{ dispatcher };
   spdlog::info( "pgmemu-cli {} serving JSON-lines on stdio", pgm::versionString() );
   transport.serve( std::cin, std::cout );
