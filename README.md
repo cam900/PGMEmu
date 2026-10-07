@@ -1,11 +1,26 @@
 # PGMEmu
 
-A software emulator of the IGS PolyGame Master (PGM) arcade board, in C++20.
+PGMEmu is an emulator of the IGS PolyGame Master (PGM) arcade board. Its hardware is ported from
+the MiSTer FPGA core.
 
-- Hardware behaviour is ported from the MiSTer FPGA core (`../Arcade-IGSPGM_MiSTer`).
-- Games are loaded as `.pgm` cartridge images produced by PGMBuilder; the PGM BIOS is loaded from `pgm.zip`.
-- Desktop frontend: SDL3 + Dear ImGui. Headless runner and JSON-lines / MCP control servers for agents and tests.
+- It runs `.pgm` cartridge images made by PGMBuilder, with the PGM BIOS from `pgm.zip`.
+- It has a desktop frontend built on SDL3 and Dear ImGui.
+- A headless runner and control servers (JSON-lines and MCP) let scripts and AI agents drive it.
 
-Status: design phase. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
+## Building
 
-License: GPL-2.0 (see [LICENSE](LICENSE) and ARCHITECTURE.md, section 10).
+The build needs CMake 3.25+, Ninja, a C++23 compiler (Apple clang, GCC or MSVC) and SDL3.
+
+```sh
+cmake --preset release && cmake --build --preset release
+```
+
+## Running
+
+PGMEmu cannot run games yet. The plan is in [docs/plans/milestones.md](docs/plans/milestones.md),
+and the design in [docs/architecture.md](docs/architecture.md).
+
+## Licence
+
+PGMEmu is licensed under GPL-2.0; see [LICENSE](LICENSE). The reason is in
+[docs/decisions/0004-licence-gpl-2.md](docs/decisions/0004-licence-gpl-2.md).

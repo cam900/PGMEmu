@@ -1,21 +1,109 @@
-# PGMEmu: notes for agent sessions
+# Working in this repository
 
-IGS PGM arcade emulator in C++20. Read docs/ARCHITECTURE.md before changing structure; docs/ROADMAP.md says what is next.
+## Language
 
-## Workspace neighbours (read-only references)
-- `../Arcade-IGSPGM_MiSTer/rtl` is the hardware reference: port behaviour from here, not from MAME.
-  The Verilator sim is in `../Arcade-IGSPGM_MiSTer/sim`. Run it with `PGM_ROM_DIR=../../ROMS ./sim <game>`,
-  or headless with `./sim --server` (protocol: `../Arcade-IGSPGM_MiSTer/docs/sim-server.md`). It runs at about 1.4 fps.
-- `../PGMTech/README.md`: hardware documentation (memory maps, registers, video, ICS2115).
-- `../PGMBuilder`: `.pgm` format (`pgm.hpp`) and converter (`out/build/native/PGMBuilder game.zip outdir`).
-  The RTL sim's own `.pgm` loader is outdated (v0x0010); do not copy it.
-  PGMBuilder is the project owner's code, so its code (e.g. `pgm.hpp` structs) may be reused. Mostly it is used as a tool.
-- `../PGMTest`: test ROM (BIOS replacement). Results are in WRAM 0x81F000 (`.test_status`) and the RFIF debug link.
-- `../ICS2115/docs`: ICS2115 spec. `../ROMS`: MAME zips, including `pgm.zip` (BIOS).
-- `../Gearlynx`: design reference only. GPL-3, so do not copy code into this repo (GPL-2).
+Discussion with the user is in Polish. **All code, comments, documentation,
+commit messages and identifiers are in English.**
 
-## Rules
-- The core (`src/core`) has no SDL, ImGui, threads or file dialogs, and must stay deterministic.
-- Every hardware feature is reachable through `control::Dispatcher`. GUI windows and servers are clients of it.
-- Each ported module names its RTL source file in its header comment.
-- Never commit ROMs or `.pgm` files.
+## Build and test
+
+```sh
+cmake --preset debug && cmake --build --preset debug && ctest --preset debug
+```
+
+Presets: `debug`, `release`, `asan`. Never create build directories by hand;
+the presets own `build/<preset>`.
+
+```sh
+./scripts/format.sh          # format in place
+./scripts/format.sh --check  # fail on deviation
+./scripts/tidy.sh            # clang-tidy against build/debug
+```
+
+Homebrew keeps LLVM keg-only, so `clang-tidy` is not on `PATH` on macOS, and it
+does not know where Apple's SDK keeps the standard library. `scripts/tidy.sh`
+handles both; do not invoke `clang-tidy` directly.
+
+What to build next is [docs/plans/milestones.md](docs/plans/milestones.md); a
+session takes one milestone by name.
+
+## Layout
+
+| Path | Contents |
+|---|---|
+| `src/pgm_core/` | The emulated machine and the control dispatcher. All logic; no SDL, ImGui, threads or file dialogs; deterministic. |
+| `src/pgm_server/` | Transports onto the dispatcher: JSON-lines (stdio, TCP) and MCP. |
+| `src/pgm_cli/` | `pgmemu-cli`: headless runs, `--server`, `--mcp`. Argument parsing and I/O only. |
+| `src/pgm_app/` | `pgmemu`: the SDL3 + Dear ImGui desktop frontend. |
+| `tests/` | Catch2 v3 tests, linked against `pgm_core`. |
+| `libextern/` | Third-party code carried in the tree, unmodified. Not formatted, not tidied. `libextern/README.md` is the inventory. |
+| `cmake/` | `Warnings.cmake`, `Dependencies.cmake`. |
+| `docs/` | See `docs/README.md`; it is the index and the rulebook. |
+
+## The workspace around it
+
+These are read-only references, never edited from here:
+
+- `../Arcade-IGSPGM_MiSTer/rtl` is **the hardware reference**
+  ([0002](docs/decisions/0002-the-fpga-core-is-the-reference.md)). Port from
+  it, not from MAME. The Verilator simulation is in `sim/`:
+  - Run `PGM_ROM_DIR=../../ROMS ./sim <game>` for the GUI.
+  - Run `./sim --server` for the JSON-lines protocol in `docs/sim-server.md`.
+  - It runs at about 1.4 frames per second.
+- `../PGMTech/README.md` documents the board: memory maps, registers, video
+  and ICS2115.
+- `../PGMBuilder` is the owner's converter from zip to `.pgm`; `pgm.hpp` is the
+  format. Run `out/build/native/PGMBuilder game.zip outdir`. The RTL
+  simulator's own `.pgm` loader is outdated and is not a reference.
+- `../PGMTest` is a test ROM that replaces the BIOS. It reports results at
+  WRAM 0x81F000 and over the RFIF debug link.
+- `../ICS2115/docs` is an ICS2115 specification.
+- `../ROMS` holds MAME zips, including `pgm.zip`, the BIOS.
+- `../Gearlynx` is a design reference only. It is GPL-3 and is never copied
+  from ([0004](docs/decisions/0004-licence-gpl-2.md)).
+- `../../NGA` is the owner's project whose style and regime this one adopts
+  ([0007](docs/decisions/0007-code-style-is-ngas.md)).
+
+## Code style
+
+Enforced by `.clang-format` and `.clang-tidy`; the summary below is for
+orientation, and the config files are the authority.
+
+- Allman braces, 2-space indent, no tabs, 120-column limit.
+- Spaces inside parentheses, but not empty ones: `foo( a, b )`, `if ( x )`, `bar()`.
+- East const, pointer on the left: `int* p`, `int const* p`.
+- Types are `CamelCase`; functions and variables are `camelBack`; namespaces are
+  `lower_case` (`pgm`, `pgm::video`, ...).
+- Class members are `mMember` (private or protected); struct members are `member` (public).
+- Constants are `UPPER_CASE` at namespace and class scope, and `camelBack` inside functions.
+- Enum names follow types; enum constants follow constants.
+- File names are `CamelCase.hpp` / `CamelCase.cpp`.
+- Emulated registers, buses and bit fields are held in unsigned fixed-width
+  types (`std::uint8_t` ... `std::uint64_t`).
+- An RTL signal keeps its words in its C++ name: `sprite_dma_en` becomes
+  `spriteDmaEn`.
+- Every hardware module's header comment names the RTL file(s) it ports and
+  the MiSTer core commit they were read at.
+
+C++23, but only the subset Apple clang, GCC and MSVC all implement.
+`src/pgm_core/src/PortabilityChecks.cpp` pins that subset down; extend it
+rather than discovering a gap in CI. Prefer `fmt` (via spdlog) over
+`std::format`, and avoid `std::print`, `<stacktrace>` and `std::flat_map`.
+
+## Documentation discipline
+
+The rules are in `docs/README.md` and they are not optional. In short:
+
+- Documentation carries **why** and **contracts**; code carries **how**.
+- One fact, one place; everywhere else links to it. Facts about the board stay
+  in PGMTech and the RTL and are linked, not copied.
+- No status, progress or session-note files.
+- Documentation is updated **in the same commit** as the change that invalidated it.
+- A new document requires an entry in `docs/README.md`, or it does not get written.
+
+Non-obvious reasoning belongs in code comments; do not comment the obvious.
+
+## Never
+
+- Commit ROMs, BIOS images or `.pgm` files.
+- Commit before the owner has reviewed.

@@ -1,0 +1,57 @@
+# Documentation map
+
+This file is the index of every document in the project. **A document that is
+not listed here must not exist.** If a new piece of writing cannot be classified
+into one of the buckets below, that is the signal it should not be written. The
+regime is NGA's, adopted whole: [0001](decisions/0001-documentation-regime.md).
+
+## The rule
+
+> **Documentation carries *why* and *contracts*. Code carries *how*.**
+
+If a sentence can be read off a function signature, it does not belong in a
+document. Non-obvious *reasoning* inside the code belongs in code comments, not
+here.
+
+Two supporting rules:
+
+1. **One fact, one place.** Every other place links to it instead of repeating it.
+2. **No status files.** No `PROGRESS.md`, `TODO.md`, `CHANGES.md`, session notes
+   or similar. Git history covers that ground.
+
+Documentation is updated in the **same commit** as the change that invalidated
+it, never "at the end of the session".
+
+## Buckets
+
+| Location | Answers | Must not contain |
+|---|---|---|
+| `/README.md` | What PGMEmu is, how to build it, how to run it | architecture, internal APIs |
+| `/CLAUDE.md` | How to work in this repository: commands, conventions, where things live | domain knowledge; rules and pointers only |
+| `docs/architecture.md` | What the components are, how time and data flow between them, **why** the boundaries sit where they do | class or function listings, signatures |
+| `docs/decisions/NNNN-*.md` | Why a decision was made, and what it costs. Immutable once merged; a reversal is a new record that supersedes the old one | present-tense state of the system |
+| `docs/spec/*.md` | External contracts: the `.pgm` file as read, the control protocol, save-state layout | implementation detail |
+| `docs/hardware/*.md` | Where the emulator knowingly differs from the RTL, from PGMTech or from the board, and the evidence | anything the RTL or PGMTech already says; link to them |
+| `docs/plans/*.md` | The order decided-but-unbuilt work is built in, one entry per session-sized task, each removed in the commit that lands it. A queue that only shrinks | status, progress, what was done, any decision the records do not hold |
+| `docs/open-questions.md` | Questions deferred on purpose, each removed when a record answers it | anything decided |
+| `libextern/README.md` | Third-party code carried in the tree: what, from which upstream commit, under which licence, and how it is updated | anything of ours; a local patch to upstream code |
+
+## Index
+
+### Overview
+- [Architecture](architecture.md): the core, the control API, the frontends, and how emulated time is kept
+
+### Decision records
+- [0001: Documentation regime](decisions/0001-documentation-regime.md)
+- [0002: The FPGA core is the hardware reference](decisions/0002-the-fpga-core-is-the-reference.md)
+- [0003: CPU cores](decisions/0003-cpu-cores.md)
+- [0004: Licence is GPL-2.0](decisions/0004-licence-gpl-2.md)
+- [0005: One control API, spoken in the RTL simulator's protocol](decisions/0005-one-control-api.md)
+- [0006: Code that decides emulated behaviour is vendored, tooling is fetched](decisions/0006-dependencies.md)
+- [0007: Code style and toolchain are NGA's](decisions/0007-code-style-is-ngas.md)
+
+### Plans
+- [Milestones](plans/milestones.md): M0 to M8, from the skeleton to protected games
+
+### Open questions
+- [Open questions](open-questions.md)
