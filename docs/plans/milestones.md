@@ -17,25 +17,6 @@ A session takes work by saying *build M<n> of docs/plans/milestones.md*. Every t
 Every milestone ends with an **exit** condition that can be checked without a person looking at
 a screen. That is why the control API and the headless runner come before most of the hardware.
 
-## M0: The skeleton
-
-*Delivers:*
-
-- Build: `CMakeLists.txt`, presets, `cmake/Warnings.cmake`, `cmake/Dependencies.cmake`
-  ([0006](../decisions/0006-dependencies.md), [0007](../decisions/0007-code-style-is-ngas.md)).
-- Targets: an empty `pgm_core` with `PortabilityChecks.cpp`; `pgm_server` with the JSON-lines
-  stdio transport; `pgmemu-cli`; `pgmemu`, an SDL3 window with an ImGui dockspace showing a test
-  pattern; `pgm_tests` (Catch2).
-- `control::Dispatcher` answering `emu.status`.
-- `docs/spec/control-protocol.md` begun.
-- `libextern/README.md` with Moira and `z80.h` vendored.
-
-*Exit:*
-
-- `cmake --preset debug && cmake --build --preset debug && ctest --preset debug` passes.
-- `./scripts/format.sh --check` and `./scripts/tidy.sh` are clean.
-- `echo '{"id":1,"method":"emu.status"}' | pgmemu-cli --server` answers.
-
 ## M1: Cartridge and BIOS
 
 *Delivers:*

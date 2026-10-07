@@ -12,7 +12,13 @@ cmake --preset debug && cmake --build --preset debug && ctest --preset debug
 ```
 
 Presets: `debug`, `release`, `asan`. Never create build directories by hand;
-the presets own `build/<preset>`.
+the presets own `build/<preset>`. `-DPGM_BUILD_APP=OFF` at configure leaves out
+the desktop application and with it SDL3 and ImGui.
+
+```sh
+build/debug/src/pgm_app/pgmemu                                        # desktop
+echo '{"id":1,"method":"emu.status"}' | build/debug/src/pgm_cli/pgmemu-cli --server
+```
 
 ```sh
 ./scripts/format.sh          # format in place
@@ -31,7 +37,7 @@ session takes one milestone by name.
 
 | Path | Contents |
 |---|---|
-| `src/pgm_core/` | The emulated machine and the control dispatcher. All logic; no SDL, ImGui, threads or file dialogs; deterministic. |
+| `src/pgm_core/` | The emulated machine and the control dispatcher. All logic; no SDL, ImGui, threads or file dialogs; deterministic. `moira/MoiraConfig.h` is Moira's configuration ([0009](docs/decisions/0009-moira-configuration.md)). |
 | `src/pgm_server/` | Transports onto the dispatcher: JSON-lines (stdio, TCP) and MCP. |
 | `src/pgm_cli/` | `pgmemu-cli`: headless runs, `--server`, `--mcp`. Argument parsing and I/O only. |
 | `src/pgm_app/` | `pgmemu`: the SDL3 + Dear ImGui desktop frontend. |

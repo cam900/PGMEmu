@@ -9,13 +9,24 @@ the MiSTer FPGA core.
 
 ## Building
 
-The build needs CMake 3.25+, Ninja, a C++23 compiler (Apple clang, GCC or MSVC) and SDL3.
+The build needs CMake 3.25+, Ninja and a C++23 compiler (Apple clang, GCC or MSVC). Every
+dependency, SDL3 included, is fetched at a pinned version when the build is first configured, so
+that configure needs the network.
 
 ```sh
 cmake --preset release && cmake --build --preset release
 ```
 
+`-DPGM_BUILD_APP=OFF` leaves out the desktop application, and with it SDL3 and ImGui.
+
 ## Running
+
+```sh
+build/release/src/pgm_app/pgmemu              # the desktop application
+build/release/src/pgm_cli/pgmemu-cli --server # JSON-lines control on stdio
+```
+
+The control protocol is [docs/spec/control-protocol.md](docs/spec/control-protocol.md).
 
 PGMEmu cannot run games yet. The plan is in [docs/plans/milestones.md](docs/plans/milestones.md),
 and the design in [docs/architecture.md](docs/architecture.md).

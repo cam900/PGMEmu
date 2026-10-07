@@ -41,6 +41,9 @@ it, never "at the end of the session".
 ### Overview
 - [Architecture](architecture.md): the core, the control API, the frontends, and how emulated time is kept
 
+### Specifications
+- [The control protocol](spec/control-protocol.md): framing, requests, responses, error codes, and every method
+
 ### Decision records
 - [0001: Documentation regime](decisions/0001-documentation-regime.md)
 - [0002: The FPGA core is the hardware reference](decisions/0002-the-fpga-core-is-the-reference.md)
@@ -49,9 +52,11 @@ it, never "at the end of the session".
 - [0005: One control API, spoken in the RTL simulator's protocol](decisions/0005-one-control-api.md)
 - [0006: Code that decides emulated behaviour is vendored, tooling is fetched](decisions/0006-dependencies.md)
 - [0007: Code style and toolchain are NGA's](decisions/0007-code-style-is-ngas.md)
+- [0008: The renderer is SDL_GPU](decisions/0008-the-renderer-is-sdl-gpu.md)
+- [0009: Moira's configuration is ours](decisions/0009-moira-configuration.md)
 
 ### Plans
-- [Milestones](plans/milestones.md): M0 to M8, from the skeleton to protected games
+- [Milestones](plans/milestones.md): what is still to be built, from cartridge loading to protected games
 
 ### Open questions
 - [Open questions](open-questions.md)
