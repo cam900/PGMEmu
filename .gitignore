@@ -1,0 +1,21 @@
+# Build output
+/build/
+/out/
+compile_commands.json
+.cache/
+
+# ROMs and generated cartridge images are never committed
+*.pgm
+*.zip
+/roms/
+
+# Runtime artefacts
+*.state*
+*.nv
+*.wav
+/screenshots/
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
