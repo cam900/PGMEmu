@@ -44,6 +44,7 @@ it, never "at the end of the session".
 ### Specifications
 - [The control protocol](spec/control-protocol.md): framing, requests, responses, error codes, and every method
 - [The `.pgm` cartridge image](spec/pgm-format.md): PGMBuilder's format as the emulator reads it, and what it refuses
+- [Batch scripts](spec/batch.md): runs written down, the checkpoints they sum, and the regression suite made of them
 
 ### Decision records
 - [0001: Documentation regime](decisions/0001-documentation-regime.md)

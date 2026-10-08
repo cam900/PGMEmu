@@ -17,18 +17,6 @@ A session takes work by saying *build M<n> of docs/plans/milestones.md*. Every t
 Every milestone ends with an **exit** condition that can be checked without a person looking at
 a screen. That is why the control API and the headless runner come before most of the hardware.
 
-## M6: The regression suite
-
-*Delivers:*
-
-- Golden frames per game with scripted input (coin, start, a few seconds of play).
-- `compare-with-rtl.py` bisecting to frame, line and instruction, and starting from RTL save
-  states.
-- A headless speed benchmark per game.
-
-*Exit:* `ctest --preset release -L regression` runs every PGMTest page and every golden frame in
-under two minutes.
-
 ## M7: Protection
 
 *Delivers,* in order:

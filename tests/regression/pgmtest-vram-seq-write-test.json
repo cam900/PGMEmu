@@ -1,0 +1,38 @@
+{
+  "description": "PGMTest's vram_seq_write_test page, in place of the BIOS program.",
+  "bios_program": "build/tools/pgmtest-vram_seq_write_test/pgm",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "pgm"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 300
+      }
+    },
+    {
+      "checkpoint": "end"
+    }
+  ],
+  "golden": {
+    "end": {
+      "frame": 301,
+      "picture": "e5b4aabd",
+      "work_ram": "45ab293d",
+      "video_ram": "259d4dce",
+      "palette_ram": "680f2b38",
+      "audio_ram": "d7978eeb",
+      "sound": "00000000"
+    }
+  }
+}

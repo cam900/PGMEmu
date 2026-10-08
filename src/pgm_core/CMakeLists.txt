@@ -5,6 +5,7 @@ add_library( pgm_core
   src/cart/Bios.cpp
   src/cart/PgmImage.cpp
   src/control/AudioMethods.cpp
+  src/control/Batch.cpp
   src/control/CpuMethods.cpp
   src/control/Describe.cpp
   src/control/Dispatcher.cpp

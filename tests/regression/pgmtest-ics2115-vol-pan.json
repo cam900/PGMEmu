@@ -1,0 +1,62 @@
+{
+  "description": "PGMTest's ics2115_vol_pan page, in place of the BIOS program.",
+  "bios_program": "build/tools/pgmtest-ics2115_vol_pan/pgm",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "pgm"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 60
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "down"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "down"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 300
+      }
+    },
+    {
+      "checkpoint": "end"
+    }
+  ],
+  "golden": {
+    "end": {
+      "frame": 373,
+      "picture": "55db953a",
+      "work_ram": "8e9aff13",
+      "video_ram": "6d19b275",
+      "palette_ram": "680f2b38",
+      "audio_ram": "e57c9d75",
+      "sound": "55f030c9"
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "description": "PGMTest's bg_test page, in place of the BIOS program.",
+  "bios_program": "build/tools/pgmtest-bg_test/pgm",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "pgm"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "checkpoint": "end"
+    }
+  ],
+  "golden": {
+    "end": {
+      "frame": 121,
+      "picture": "be5c1509",
+      "work_ram": "dd03ac2f",
+      "video_ram": "2f13dda6",
+      "palette_ram": "3dd647af",
+      "audio_ram": "d7978eeb",
+      "sound": "00000000"
+    }
+  }
+}

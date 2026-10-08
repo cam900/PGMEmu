@@ -1,0 +1,38 @@
+{
+  "description": "PGMTest's ics_remote page, in place of the BIOS program.",
+  "bios_program": "build/tools/pgmtest-ics_remote/pgm",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "pgm"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "checkpoint": "end"
+    }
+  ],
+  "golden": {
+    "end": {
+      "frame": 121,
+      "picture": "b61b788c",
+      "work_ram": "a41bc3f2",
+      "video_ram": "e71772f2",
+      "palette_ram": "680f2b38",
+      "audio_ram": "b5e4c8a0",
+      "sound": "d2b1df43"
+    }
+  }
+}

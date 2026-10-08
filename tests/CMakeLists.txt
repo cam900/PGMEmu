@@ -4,6 +4,7 @@ add_executable( pgm_tests
   cart/BiosTest.cpp
   cart/PgmImageTest.cpp
   control/AudioAndInputTest.cpp
+  control/BatchTest.cpp
   control/DispatcherTest.cpp
   control/LoadAndMemoryTest.cpp
   control/TestMethodsTest.cpp
@@ -51,3 +52,26 @@ target_link_libraries( pgm_tests
 
 include( Catch )
 catch_discover_tests( pgm_tests )
+
+# The regression suite: every script in regression/ run by pgmemu-cli --batch,
+# which checks it against the golden sums it holds (docs/spec/batch.md). A
+# script whose game or BIOS program is absent exits 77 and is skipped, so is
+# every one without the BIOS. New scripts need a reconfigure.
+set( PGM_REGRESSION_BIOS "${CMAKE_SOURCE_DIR}/../ROMS/pgm.zip" )
+set( PGM_REGRESSION_ROMS "${CMAKE_SOURCE_DIR}/roms" )
+set( regression_sources )
+if( EXISTS "${PGM_REGRESSION_BIOS}" )
+  list( APPEND regression_sources --bios "${PGM_REGRESSION_BIOS}" )
+endif()
+if( IS_DIRECTORY "${PGM_REGRESSION_ROMS}" )
+  list( APPEND regression_sources --rom-dir "${PGM_REGRESSION_ROMS}" )
+endif()
+file( GLOB regression_scripts CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/regression/*.json" )
+foreach( script IN LISTS regression_scripts )
+  get_filename_component( name "${script}" NAME_WE )
+  add_test( NAME "regression.${name}"
+            COMMAND pgm_cli --batch "${script}" ${regression_sources}
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" )
+  set_tests_properties( "regression.${name}" PROPERTIES LABELS regression SKIP_RETURN_CODE 77 )
+endforeach()
+

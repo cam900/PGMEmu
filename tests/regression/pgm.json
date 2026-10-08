@@ -1,0 +1,73 @@
+{
+  "description": "The BIOS alone: its boot screens and its jingle.",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "pgm"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 60
+      }
+    },
+    {
+      "checkpoint": "logo"
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 540
+      }
+    },
+    {
+      "checkpoint": "jingle"
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 300
+      }
+    },
+    {
+      "checkpoint": "settled"
+    }
+  ],
+  "golden": {
+    "logo": {
+      "frame": 61,
+      "picture": "61dc8ca0",
+      "work_ram": "f6d3e815",
+      "video_ram": "d2c962af",
+      "palette_ram": "848a9b52",
+      "audio_ram": "912707cb",
+      "sound": "696e05c6"
+    },
+    "jingle": {
+      "frame": 601,
+      "picture": "18998378",
+      "work_ram": "21f31841",
+      "video_ram": "090be041",
+      "palette_ram": "52a76f72",
+      "audio_ram": "017ea489",
+      "sound": "7526a0c1"
+    },
+    "settled": {
+      "frame": 901,
+      "picture": "42bb10d9",
+      "work_ram": "f467bd16",
+      "video_ram": "8740f611",
+      "palette_ram": "52a76f72",
+      "audio_ram": "0d6f2b91",
+      "sound": "3c779c04"
+    }
+  }
+}

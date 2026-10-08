@@ -1,0 +1,38 @@
+{
+  "description": "PGMTest's vram_test page, in place of the BIOS program.",
+  "bios_program": "build/tools/pgmtest-vram_test/pgm",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "pgm"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "checkpoint": "end"
+    }
+  ],
+  "golden": {
+    "end": {
+      "frame": 121,
+      "picture": "9a387628",
+      "work_ram": "6150c0fc",
+      "video_ram": "215dcd7b",
+      "palette_ram": "680f2b38",
+      "audio_ram": "d7978eeb",
+      "sound": "00000000"
+    }
+  }
+}

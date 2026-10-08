@@ -1,0 +1,38 @@
+{
+  "description": "PGMTest's system_basics page, in place of the BIOS program.",
+  "bios_program": "build/tools/pgmtest-system_basics/pgm",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "pgm"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "checkpoint": "end"
+    }
+  ],
+  "golden": {
+    "end": {
+      "frame": 121,
+      "picture": "8d5934f8",
+      "work_ram": "599a5b1e",
+      "video_ram": "a2c8d61d",
+      "palette_ram": "3c158cef",
+      "audio_ram": "d7978eeb",
+      "sound": "00000000"
+    }
+  }
+}

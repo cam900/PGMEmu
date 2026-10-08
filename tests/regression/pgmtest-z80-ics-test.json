@@ -1,0 +1,110 @@
+{
+  "description": "PGMTest's z80_ics_test page, in place of the BIOS program.",
+  "bios_program": "build/tools/pgmtest-z80_ics_test/pgm",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "pgm"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 60
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "down"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "down"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "down"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "down"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "down"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "down"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "down"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "down"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "down"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "down"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 300
+      }
+    },
+    {
+      "checkpoint": "end"
+    }
+  ],
+  "golden": {
+    "end": {
+      "frame": 405,
+      "picture": "8c110625",
+      "work_ram": "63000efa",
+      "video_ram": "b39a1a09",
+      "palette_ram": "680f2b38",
+      "audio_ram": "b164efb1",
+      "sound": "b032c50d"
+    }
+  }
+}

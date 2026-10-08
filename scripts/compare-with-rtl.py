@@ -27,6 +27,13 @@ directory as its first BIOS source.
 held, two released), once FRAME frames have run; the names are the
 simulator's: up, down, left, right, button1, start. It may be repeated.
 
+--bisect, when a checkpoint differs in memory, looks for where the two first
+parted, between the last checkpoint that matched (or the reset) and it: the
+frame, then the line, then the instruction. The simulator's save states do not
+reload exactly, so each step starts both again from the reset, and a bisection
+costs some three times the frames to the difference. At the end it shows both
+68000s and the emulator's last instructions.
+
 --audio records the ICS2115's output on both from the reset to the last frame,
 keeps both as WAVs in build/compare/, and compares them sample by sample after
 aligning them: the two can disagree by a sample or so on where a frame ends.
@@ -217,6 +224,145 @@ def compare_audio(mine, theirs, max_lag=64, window=8192):
 REGION_SIZES = {"WORK_RAM": 0x20000, "VIDEO_RAM": 0x8000, "PALETTE_RAM": 0x2000, "AUDIO_RAM": 0x10000}
 
 
+MASTER_TICKS_PER_LINE = 3200
+LINES_PER_FRAME = 264
+INSTRUCTION_STEP_TICKS = 16
+
+
+class Pair:
+    """The emulator and the simulation, started alike from the reset and run in
+    step, with the same controls pressed at the same frames."""
+
+    def __init__(self, args, scratch):
+        bios_sources = ["--bios", args.bios]
+        if args.program:
+            override = pathlib.Path(scratch) / PROGRAM_NAME
+            override.write_bytes(args.program.read_bytes())
+            bios_sources = ["--bios", scratch] + bios_sources
+        self.emulator = Server("emulator",
+                               [args.emulator, "--server", *bios_sources, "--rom-dir", str(ROOT / "roms")],
+                               cwd=ROOT)
+        self.simulator = Server("simulator", ["./sim", "--server"], cwd=SIM_DIR,
+                                env={"PGM_ROM_DIR": str(WORKSPACE / "ROMS"), "PATH": "/usr/bin:/bin"})
+        self.simulator.call("sim.initialize", headless=True)
+        for server in self.servers():
+            server.call("sim.load_game", name=args.game)
+        if args.program:
+            self.simulator.write("BIOS_PROG_ROM", args.program.read_bytes())
+        for server in self.servers():
+            server.call("sim.reset", cycles=100)
+        self.frame = 0
+        self.presses = sorted((int(at), name) for name, at in (item.split("@") for item in args.press))
+
+    def servers(self):
+        return (self.emulator, self.simulator)
+
+    def run_to(self, frame):
+        """Runs both to `frame`, pressing what is due on the way: a press holds
+        for two frames and releases for two. Answers each one's last run."""
+        runs = {}
+        while self.presses and self.presses[0][0] <= frame:
+            at, name = self.presses.pop(0)
+            for server in self.servers():
+                if at > self.frame:
+                    server.call("sim.run_frames", count=at - self.frame)
+                server.call("input.press", name=name)
+            self.frame = max(self.frame, at) + 4
+        if frame > self.frame:
+            runs = {server.name: server.call("sim.run_frames", count=frame - self.frame)
+                    for server in self.servers()}
+            self.frame = frame
+        return runs
+
+    def run_ticks(self, ticks):
+        for server in self.servers():
+            server.call("sim.run_cycles", count=ticks)
+
+    def differences(self, regions, ignored):
+        """The differing ranges of each region, those ignored left out."""
+        found = {}
+        for region in regions:
+            mine = self.emulator.read(region, REGION_SIZES[region])
+            theirs = self.simulator.read(region, REGION_SIZES[region])
+            ranges = [(start, end) for start, end in differing_ranges(mine, theirs)
+                      if not any(low <= start and end <= high for low, high in ignored.get(region, []))]
+            if ranges:
+                found[region] = (ranges, mine, theirs)
+        return found
+
+    def close(self):
+        for server in self.servers():
+            server.close()
+
+
+def show_differences(found, limit):
+    for region, (ranges, mine, theirs) in found.items():
+        differing = sum(end - start for start, end in ranges)
+        print(f"  {region}: {differing} bytes differ in {len(ranges)} ranges")
+        for start, end in ranges[:limit]:
+            print(f"    {start:06x}-{end - 1:06x}  emulator {mine[start:min(end, start + 8)].hex()}"
+                  f"  simulator {theirs[start:min(end, start + 8)].hex()}")
+
+
+def bisect(args, ignored, good, bad):
+    """Finds the frame, the line and the instruction at which memory first
+    differs between frame `good`, where it matched, and frame `bad`."""
+    regions = args.regions
+    with tempfile.TemporaryDirectory() as scratch:
+        print(f"bisect: frames {good} to {bad}")
+        pair = Pair(args, scratch)
+        pair.run_to(good)
+        before = good
+        while pair.frame < bad:
+            before = pair.frame
+            pair.run_to(pair.frame + 1)
+            if pair.differences(regions, ignored):
+                break
+        else:
+            print("bisect: no frame differs on the way; the difference comes and goes")
+            pair.close()
+            return
+        frame = pair.frame
+        pair.close()
+        print(f"bisect: frame {frame} is the first to differ")
+
+        pair = Pair(args, scratch)
+        pair.run_to(before)
+        lines = 0
+        while True:
+            pair.run_ticks(MASTER_TICKS_PER_LINE)
+            lines += 1
+            if pair.differences(regions, ignored) or lines >= LINES_PER_FRAME * (frame - before):
+                break
+        pair.close()
+        print(f"bisect: {lines} lines after frame {before}, line {lines % LINES_PER_FRAME} of its frame")
+
+        pair = Pair(args, scratch)
+        pair.run_to(before)
+        pair.run_ticks(MASTER_TICKS_PER_LINE * (lines - 1))
+        steps = 0
+        found = {}
+        while steps * INSTRUCTION_STEP_TICKS <= MASTER_TICKS_PER_LINE:
+            pair.run_ticks(INSTRUCTION_STEP_TICKS)
+            steps += 1
+            found = pair.differences(regions, ignored)
+            if found:
+                break
+        ticks = {server.name: server.call("sim.status")["total_ticks"] for server in pair.servers()}
+        print(f"bisect: memory differs {steps * INSTRUCTION_STEP_TICKS} master ticks into that line; "
+              f"total ticks emulator {ticks['emulator']}, simulator {ticks['simulator']}")
+        show_differences(found, args.ranges)
+        for server in pair.servers():
+            state = server.call("cpu.get_state")
+            print(f"  {server.name} 68000: pc {state['pc']:06x}  d " +
+                  " ".join(f"{value:08x}" for value in state["registers"][:8]) + "\n" + " " * 21 + "a " +
+                  " ".join(f"{value:08x}" for value in state["registers"][8:15]))
+        print("  the emulator's last instructions (the simulator's pc is its prefetch address):")
+        for entry in pair.emulator.call("debug.trace", count=12)["instructions"]:
+            print(f"    {entry['pc']:06x}  {entry['disasm']}")
+        pair.close()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--game", default="pgm")
@@ -236,6 +382,8 @@ def main():
                         help="press a control at a frame; may be repeated")
     parser.add_argument("--audio", action="store_true",
                         help="also record the sound from the reset on, and compare it")
+    parser.add_argument("--bisect", action="store_true",
+                        help="find the frame, line and instruction where memory first differs")
     args = parser.parse_args()
 
     ignored = {}
@@ -244,26 +392,9 @@ def main():
         start, end = (int(part, 16) for part in span.split("-"))
         ignored.setdefault(region, []).append((start, end))
 
-    bios_sources = ["--bios", args.bios]
     scratch = tempfile.TemporaryDirectory()
-    if args.program:
-        override = pathlib.Path(scratch.name) / PROGRAM_NAME
-        override.write_bytes(args.program.read_bytes())
-        bios_sources = ["--bios", scratch.name] + bios_sources
-
-    emulator = Server("emulator",
-                      [args.emulator, "--server", *bios_sources, "--rom-dir", str(ROOT / "roms")],
-                      cwd=ROOT)
-    simulator = Server("simulator", ["./sim", "--server"], cwd=SIM_DIR,
-                       env={"PGM_ROM_DIR": str(WORKSPACE / "ROMS"), "PATH": "/usr/bin:/bin"})
-    simulator.call("sim.initialize", headless=True)
-
-    for server in (emulator, simulator):
-        server.call("sim.load_game", name=args.game)
-    if args.program:
-        simulator.write("BIOS_PROG_ROM", args.program.read_bytes())
-    for server in (emulator, simulator):
-        server.call("sim.reset", cycles=100)
+    pair = Pair(args, scratch.name)
+    emulator, simulator = pair.servers()
 
     label = args.program.parent.parent.name if args.program else args.game
     outputs = ROOT / "build" / "compare"
@@ -272,33 +403,27 @@ def main():
         emulator.call("audio.capture_start", path=str(outputs / f"{label}-emulator.wav"))
         simulator.call("audio_capture.start", filename=str(outputs / f"{label}-simulator.pga"))
 
-    presses = sorted((int(at), name) for name, at in (item.split("@") for item in args.press))
     identical = True
-    done = 0
+    matched = 0
+    first_bad = None
     for frame in args.frames:
         started = time.monotonic()
-        while presses and presses[0][0] <= frame:
-            at, name = presses.pop(0)
-            for server in (emulator, simulator):
-                if at > done:
-                    server.call("sim.run_frames", count=at - done)
-                server.call("input.press", name=name)
-            done = max(done, at) + 4
-        runs = {server.name: server.call("sim.run_frames", count=frame - done) for server in (emulator, simulator)}
-        done = frame
-        print(f"frame {frame}: ran in {time.monotonic() - started:.0f} s; ticks emulator "
-              f"{runs['emulator']['ticks_executed']}, simulator {runs['simulator']['ticks_executed']}")
+        runs = pair.run_to(frame)
+        if runs:
+            print(f"frame {frame}: ran in {time.monotonic() - started:.0f} s; ticks emulator "
+                  f"{runs['emulator']['ticks_executed']}, simulator {runs['simulator']['ticks_executed']}")
+        else:
+            print(f"frame {frame}:")
+        found = pair.differences(args.regions, ignored)
         for region in args.regions:
-            mine = emulator.read(region, REGION_SIZES[region])
-            theirs = simulator.read(region, REGION_SIZES[region])
-            ranges = [(start, end) for start, end in differing_ranges(mine, theirs)
-                      if not any(low <= start and end <= high for low, high in ignored.get(region, []))]
-            differing = sum(end - start for start, end in ranges)
-            print(f"  {region}: {'identical' if not ranges else f'{differing} bytes differ in {len(ranges)} ranges'}")
-            identical &= not ranges
-            for start, end in ranges[:args.ranges]:
-                print(f"    {start:06x}-{end - 1:06x}  emulator {mine[start:min(end, start + 8)].hex()}"
-                      f"  simulator {theirs[start:min(end, start + 8)].hex()}")
+            if region not in found:
+                print(f"  {region}: identical")
+        show_differences(found, args.ranges)
+        identical &= not found
+        if found and first_bad is None:
+            first_bad = frame
+        elif not found and first_bad is None:
+            matched = frame
 
         if args.pictures:
             decoded = {}
@@ -324,8 +449,9 @@ def main():
                               f"{len(differing)} of {overlap} differ from {differing[0]} on, by up to {worst} "
                               f"(rms {rms:.1f}; the loudest sample is {loud})"))
 
-    emulator.close()
-    simulator.close()
+    pair.close()
+    if args.bisect and first_bad is not None:
+        bisect(args, ignored, matched, first_bad)
     return 0 if identical else 1
 
 

@@ -147,9 +147,9 @@ The transports are thin, and none adds a capability of its own:
 A request from a GUI-attached transport is executed on the emulation thread between two slices,
 so the person at the GUI watches what the agent does.
 
-`pgmemu-cli` also runs batch jobs: run a game for N frames with scripted input, then write a
-screenshot, dumps and per-frame hashes. Batch jobs run unthrottled. They are the building block
-of the golden-frame tests and of comparison against the RTL.
+`pgmemu-cli --batch` runs batch scripts ([spec/batch.md](spec/batch.md)): requests of the
+protocol, with checkpoints at which the picture, the RAMs and the sound are summed, run
+unthrottled. They are the building block of the golden-frame tests.
 
 ## The desktop frontend
 
@@ -209,9 +209,12 @@ Five kinds of evidence, each catching what the others cannot:
    sprite mask decoder. They hold each module to its RTL source.
 3. **PGMTest pages** run headless. Each page reports through its result block at WRAM 0x81F000
    or through the RFIF debug link. They hold the machine to hardware-derived expectations.
-4. **Golden frames:** per-game framebuffer hashes at fixed frames under scripted input. They
-   catch regressions.
+4. **Golden frames:** batch scripts in `tests/regression/`, per game and per PGMTest page, with
+   the sums of the picture, the RAMs and the sound at their checkpoints under scripted input
+   (`ctest -L regression`). They catch regressions; they were recorded from the emulator, so a
+   change to them is checked against the RTL before it is recorded.
 5. **Comparison against the RTL simulation:** the same script drives both over the one protocol,
-   compares memory and frames, and bisects to the first divergence. It is the main instrument for
-   matching the core. The simulation runs at about 1.4 frames per second, so this runs on demand,
-   not in the suite.
+   compares memory, frames and sound, and bisects to the frame, the line and the instruction
+   where memory first differs. It is the main instrument for matching the core. The simulation
+   runs at about 1.4 frames per second, so this runs on demand, not in the suite, and always
+   from the reset: the simulation's own save states do not reload exactly.

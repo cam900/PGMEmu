@@ -1,0 +1,145 @@
+{
+  "description": "Oriental Legend: the warning, the attract mode, a coin and a start, and a few seconds of play.",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "orlegend"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 900
+      }
+    },
+    {
+      "checkpoint": "warning"
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1500
+      }
+    },
+    {
+      "checkpoint": "attract"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "coin"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "start"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 240
+      }
+    },
+    {
+      "checkpoint": "player_select"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 600
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "right"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 180
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "right"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 30
+      }
+    },
+    {
+      "checkpoint": "play"
+    }
+  ],
+  "golden": {
+    "warning": {
+      "frame": 901,
+      "picture": "a0278f75",
+      "work_ram": "b3c4c0ba",
+      "video_ram": "427b12ad",
+      "palette_ram": "e272cb3f",
+      "audio_ram": "b8ee79a6",
+      "sound": "2d4f53df"
+    },
+    "attract": {
+      "frame": 2401,
+      "picture": "1cd876e5",
+      "work_ram": "8c81a2e1",
+      "video_ram": "011ffca6",
+      "palette_ram": "9d19c84c",
+      "audio_ram": "dc864a28",
+      "sound": "20c6794b"
+    },
+    "player_select": {
+      "frame": 2769,
+      "picture": "66f1de5d",
+      "work_ram": "05bde363",
+      "video_ram": "e8fc15ea",
+      "palette_ram": "f204b9a4",
+      "audio_ram": "b6079479",
+      "sound": "3623274f"
+    },
+    "play": {
+      "frame": 3587,
+      "picture": "ea6ec5a5",
+      "work_ram": "4d8e0e46",
+      "video_ram": "4fdfffba",
+      "palette_ram": "f36cac19",
+      "audio_ram": "07d77723",
+      "sound": "fbbf4551"
+    }
+  }
+}

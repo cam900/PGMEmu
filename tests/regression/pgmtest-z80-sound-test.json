@@ -1,0 +1,68 @@
+{
+  "description": "PGMTest's z80_sound_test page, in place of the BIOS program.",
+  "bios_program": "build/tools/pgmtest-z80_sound_test/pgm",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "pgm"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 60
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "down"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "down"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "down"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 300
+      }
+    },
+    {
+      "checkpoint": "end"
+    }
+  ],
+  "golden": {
+    "end": {
+      "frame": 377,
+      "picture": "06eda8a9",
+      "work_ram": "8dca40cf",
+      "video_ram": "155d6600",
+      "palette_ram": "680f2b38",
+      "audio_ram": "65b8c736",
+      "sound": "9b399536"
+    }
+  }
+}

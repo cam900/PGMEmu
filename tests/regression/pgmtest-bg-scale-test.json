@@ -1,0 +1,38 @@
+{
+  "description": "PGMTest's bg_scale_test page, in place of the BIOS program.",
+  "bios_program": "build/tools/pgmtest-bg_scale_test/pgm",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "pgm"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "checkpoint": "end"
+    }
+  ],
+  "golden": {
+    "end": {
+      "frame": 121,
+      "picture": "cdc7f2d6",
+      "work_ram": "42aecd28",
+      "video_ram": "ece5af5a",
+      "palette_ram": "680f2b38",
+      "audio_ram": "d7978eeb",
+      "sound": "00000000"
+    }
+  }
+}

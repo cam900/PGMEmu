@@ -38,6 +38,11 @@ scripts/pgmemu.py video.screenshot path=build/shot.png
 ./scripts/compare-with-rtl.py --frames 800 --regions AUDIO_RAM --audio   # the Z80's RAM and the sound
 ./scripts/make-pgmtest.sh system_basics             # a PGMTest page as a BIOS program
 ./scripts/compare-with-rtl.py --program build/tools/pgmtest-system_basics/pgm/pgm_p02s.u20 --frames 30
+./scripts/compare-with-rtl.py --frames 600 --bisect          # where memory first differs: frame, line, instruction
+./scripts/make-pgmtest.sh --all                     # every PGMTest page, for the regression suite
+ctest --preset release -L regression                # golden frames of the BIOS, orlegend and every page
+build/release/src/pgm_cli/pgmemu-cli --batch tests/regression/orlegend.json --bios ../ROMS/pgm.zip --rom-dir roms --record   # re-record one
+./scripts/benchmark.sh                              # headless speed of every game
 ./scripts/fetch-680x0-tests.sh                      # the SingleStepTests 68000 suite
 ./scripts/fetch-z80-tests.sh                        # the SingleStepTests Z80 suite, 1.4 GB to fetch
 build/release/tests/pgm_tests "[cpu-suite]"         # Moira and z80.h against them, about 35 s

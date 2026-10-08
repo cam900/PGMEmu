@@ -9,7 +9,10 @@ Checkpoints in the BIOS's boot show the emulator running some loops about 0.03 %
 RTL simulation, in code that copies ROM into the Z80's RAM and reads both back
 ([hardware/differences.md](hardware/differences.md)). Before the interrupt acknowledge's E-clock
 wait was modelled, a drift of this size moved an event of orlegend by a frame by frame 1200; no
-tested outcome depends on it now, but a longer run or another game may. Two candidates are left:
+tested outcome depends on it now, but a longer run or another game may. `compare-with-rtl.py
+--bisect` finds the first instance: at line 15 of frame 6 the emulator has already left the BIOS's
+loop at 0xE14 that copies ROM into the Z80's RAM, which the RTL still has 27 turns of. Two
+candidates are left:
 
 - the background layer's VRAM reads, a few dots per tile, which the emulator does not charge;
 - the RTL's 68000 clock, which stops on every SDRAM access that misses the ROM cache and catches
@@ -17,7 +20,20 @@ tested outcome depends on it now, but a longer run or another game may. Two cand
   ([0010](decisions/0010-rom-timing.md)), but only on one stretch of code.
 
 Is exact long-run equality worth the cost, or should comparisons over long runs start from a
-shared state instead (M6 starts from RTL save states)? Either answer is a record.
+shared state instead? Either answer is a record.
+
+## Starting a comparison from an RTL save state
+
+A comparison with the RTL runs both from the reset, and the simulation runs at 1.4 frames a
+second: a point ten minutes into a game is hours away. The simulation saves its state at a 68000
+instruction boundary (an interrupt pushes the CPU's registers; every device dumps its words over
+a save-state bus) and the emulator could take it, device by device, onto its own parts, after
+the RTL's restore sequence of a reset and a handler. That is a mapping to write and keep for
+each device, protection ones included. And a state the simulation reloads does not run on as the
+uninterrupted run does: 60 frames after reloading, its memory differs from the 60 frames after
+saving (measured on orlegend, M6). Is a comparison from such a state worth having when it cannot
+be held to the uninterrupted run? M6 left it out; long comparisons of the games of M7 will show
+whether the hours are a problem.
 
 ## When the Z80 gives up its bus
 
