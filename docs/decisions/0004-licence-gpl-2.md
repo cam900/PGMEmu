@@ -1,6 +1,6 @@
 # 0004: Licence is GPL-2.0
 
-**Status:** accepted
+**Status:** accepted; its PGMBuilder point superseded by [0021](0021-pgmbuilder-is-not-a-source-of-code.md)
 
 ## Context
 

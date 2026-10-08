@@ -1,3 +1,5 @@
+// Derived from MAME's code under the BSD-3-Clause licence: see Asic3.hpp.
+
 #include "Asic3.hpp"
 
 #include <bit>

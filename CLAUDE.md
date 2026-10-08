@@ -9,6 +9,7 @@ commit messages and identifiers are in English.**
 
 ```sh
 cmake --preset debug && cmake --build --preset debug && ctest --preset debug
+cmake --install build/release --component pgmemu --prefix build/stage   # what a release package holds; PGMEmu.app on macOS
 ```
 
 Presets: `debug`, `release`, `asan`. Never create build directories by hand;
@@ -37,7 +38,7 @@ scripts/pgmemu.py video.screenshot path=build/shot.png
 ```sh
 ./scripts/compare-with-rtl.py --frames 60 600 --pictures   # memory and pictures against the RTL simulation
 ./scripts/compare-with-rtl.py --frames 800 --regions AUDIO_RAM --audio   # the Z80's RAM and the sound
-./scripts/make-pgmtest.sh system_basics             # a PGMTest page as a BIOS program
+./scripts/make-pgmtest.sh system_basics             # a PGMTest page as a BIOS program, from the core's testroms/
 ./scripts/compare-with-rtl.py --program build/tools/pgmtest-system_basics/pgm/pgm_p02s.u20 --frames 30
 ./scripts/compare-with-rtl.py --frames 600 --bisect          # where memory first differs: frame, line, instruction
 ./scripts/make-pgmtest.sh --all                     # every PGMTest page, for the regression suite
@@ -86,27 +87,40 @@ session takes one milestone by name.
 
 ## The workspace around it
 
-These are read-only references, never edited from here:
+The repository builds and tests on its own. These checkouts beside it are
+optional; the scripts and tests that need one say so, and skip or stop
+without it. They are read-only references, never edited from here:
 
-- `../Arcade-IGSPGM_MiSTer/rtl` is **the hardware reference**
+- `../Arcade-IGSPGM_MiSTer` (https://github.com/MiSTer-devel/Arcade-IGSPGM_MiSTer),
+  Martin Donlon's MiSTer core. Its `rtl/` is **the hardware reference**
   ([0002](docs/decisions/0002-the-fpga-core-is-the-reference.md)). Port from
-  it, not from MAME. The Verilator simulation is in `sim/`:
+  it, not from MAME. The commits the module headers cite are those of
+  https://github.com/wickerwaka/Arcade-IGSPGM_MiSTer, where the core was
+  until June 2026: `e898860` there is `ddd88ca` at MiSTer-devel, whose
+  history the move rewrote, with the same RTL. The Verilator simulation is in
+  `sim/`:
   - Run `PGM_ROM_DIR=../../ROMS ./sim <game>` for the GUI.
   - Run `./sim --server` for the JSON-lines protocol in `docs/sim-server.md`.
   - It runs at about 1.4 frames per second.
-- `../PGMTech/README.md` documents the board: memory maps, registers, video
-  and ICS2115.
-- `../PGMBuilder` is the owner's converter from zip to `.pgm`; `pgm.hpp` is the
-  format. Run `out/build/native/PGMBuilder game.zip outdir`. The RTL
-  simulator's own `.pgm` loader is outdated and is not a reference.
-- `../PGMTest` is a test ROM that replaces the BIOS. It reports results at
-  WRAM 0x81F000 and over the RFIF debug link.
-- `../ICS2115/docs` is an ICS2115 specification.
-- `../ROMS` holds MAME zips, including `pgm.zip`, the BIOS.
-- `../Gearlynx` is a design reference only. It is GPL-3 and is never copied
-  from ([0004](docs/decisions/0004-licence-gpl-2.md)).
-- `../../NGA` is the owner's project whose style and regime this one adopts
-  ([0007](docs/decisions/0007-code-style-is-ngas.md)).
+
+  Its `testroms/` is **PGMTest**, a test ROM that replaces the BIOS and reports
+  results at WRAM 0x81F000 and over the RFIF debug link;
+  `scripts/make-pgmtest.sh` builds its pages from a copy.
+- `../PGMTech` (https://github.com/laoo/PGMTech) documents the board: memory
+  maps, registers, video and ICS2115.
+- `../PGMBuilder` (https://github.com/laoo/PGMBuilder) converts MAME zips to
+  `.pgm`; `pgm.hpp` is the format. `scripts/make-pgm.sh` builds it and runs it.
+  The RTL simulator's own `.pgm` loader is outdated and is not a reference.
+- `../ICS2115` (https://github.com/wickerwaka/ICS2115): its `docs/` is an
+  ICS2115 specification.
+- `../ROMS` holds your own MAME sets, including `pgm.zip`, the BIOS. They are
+  not distributed with anything here.
+- `../Gearlynx` (https://github.com/drhelius/Gearlynx) is a design reference
+  only. It is GPL-3 and is never copied from
+  ([0004](docs/decisions/0004-licence-gpl-2.md)).
+- NGA is the owner's other project, whose style and regime this one adopts
+  ([0007](docs/decisions/0007-code-style-is-ngas.md)); its rules are written
+  out here and in `docs/`.
 
 ## Code style
 

@@ -6,6 +6,11 @@
 // chip's checksum, and starts the IGS022's commands. The RTL builds each
 // game's id and table in; here they are the I25 block's (cart::Igs025Table),
 // which holds the same ones.
+//
+// igs025.sv is converted from MAME's src/mame/igs/igs025.cpp and
+// pgmprot_igs025_igs022.cpp, copyright David Haywood and ElSemi, under the
+// BSD-3-Clause licence, whose terms this port carries on: THIRD_PARTY.md has
+// them.
 
 #include "pgm/cart/PgmImage.hpp"
 

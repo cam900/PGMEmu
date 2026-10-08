@@ -4,6 +4,10 @@
 // MiSTer core commit e898860. The 68000 reaches it at 0xC04000-0xC0400F on
 // every board, as PGM.sv decodes it whatever the cartridge: the first word
 // selects a register, the others write it or read it back.
+//
+// pgm_asic3.sv is converted from MAME's src/mame/igs/pgmprot_orlegend.cpp,
+// copyright Olivier Galibert and iq_132, under the BSD-3-Clause licence, whose
+// terms this port carries on: THIRD_PARTY.md has them.
 
 #include <array>
 #include <cstdint>

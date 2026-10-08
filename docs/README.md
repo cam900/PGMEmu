@@ -27,6 +27,7 @@ it, never "at the end of the session".
 | Location | Answers | Must not contain |
 |---|---|---|
 | `/README.md` | What PGMEmu is, how to build it, how to run it | architecture, internal APIs |
+| `/THIRD_PARTY.md` | What PGMEmu is derived from and built with, and the terms that work asks to be carried | anything of ours beyond the credits |
 | `/CLAUDE.md` | How to work in this repository: commands, conventions, where things live | domain knowledge; rules and pointers only |
 | `docs/architecture.md` | What the components are, how time and data flow between them, **why** the boundaries sit where they do | class or function listings, signatures |
 | `docs/decisions/NNNN-*.md` | Why a decision was made, and what it costs. Immutable once merged; a reversal is a new record that supersedes the old one | present-tense state of the system |
@@ -67,6 +68,8 @@ it, never "at the end of the session".
 - [0018: Rewind keeps a whole state for every frame](decisions/0018-rewind-keeps-every-frame.md)
 - [0019: Run-ahead is one setting for every game, off unless chosen](decisions/0019-run-ahead.md)
 - [0020: The core stays on one thread until a machine cannot keep up](decisions/0020-the-core-stays-single-threaded.md)
+- [0021: PGMBuilder's code is not carried into the emulator](decisions/0021-pgmbuilder-is-not-a-source-of-code.md)
+- [0022: CI builds three platforms, and a tag makes a release](decisions/0022-ci-and-releases.md)
 
 ### Hardware
 - [Differences](hardware/differences.md): where the emulator departs from the RTL, and the RTL from the board

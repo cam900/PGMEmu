@@ -19,3 +19,6 @@ compile_commands.json
 .DS_Store
 .vscode/
 .idea/
+
+# Python
+__pycache__/

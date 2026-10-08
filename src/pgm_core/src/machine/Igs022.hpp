@@ -9,6 +9,10 @@
 // machine is counted, one state a master tick, with every read of the ROM
 // hitting prot_cache.sv, so that the 68000 can be kept waiting that long, as
 // PGM.sv keeps it.
+//
+// igs022.sv is converted from MAME's src/mame/igs/igs022.cpp, copyright David
+// Haywood and ElSemi, under the BSD-3-Clause licence, whose terms this port
+// carries on: THIRD_PARTY.md has them.
 
 #include <array>
 #include <cstdint>

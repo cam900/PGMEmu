@@ -1,3 +1,5 @@
+// Derived from MAME's code under the BSD-3-Clause licence: see Igs022.hpp.
+
 #include "Igs022.hpp"
 
 #include <bit>

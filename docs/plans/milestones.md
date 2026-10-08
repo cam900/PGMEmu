@@ -21,4 +21,6 @@ a screen. That is why the control API and the headless runner come before most o
 
 *Delivers:*
 
-- A macOS app bundle; CI on macOS and Linux.
+- CI green on macOS, Linux and Windows ([0022](../decisions/0022-ci-and-releases.md)): the
+  workflow, the packages and `PGMEmu.app` are in place, and its first runs on GitHub are to fix
+  what GCC and MSVC find.

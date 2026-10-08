@@ -605,7 +605,7 @@ Errors: `not_loaded`, `bad_request`, `screenshot_failed`.
 
 The block PGMTest's pages publish their state in, at the top of work RAM, 0x81F000: a 16-bit
 magic naming the page, then words whose meaning is the page's own (its `TestStatus` in
-`../PGMTest/src/pages/`).
+`testroms/pages/` of the MiSTer core).
 
 ```json
 {"id":11,"ok":true,"result":{"address":8515584,"magic":22100,"name":"VT","words":[22100,0,0,1,0,0,5,0,8192,0,0,0]}}
