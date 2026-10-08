@@ -1,0 +1,181 @@
+{
+  "description": "Happy 6-in-1, through its IGS027A of type 3: the attract mode, a coin and a start, and a few moves of a game.",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "happy6"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1200
+      }
+    },
+    {
+      "checkpoint": "title"
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1800
+      }
+    },
+    {
+      "checkpoint": "attract"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "coin"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 420
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "start"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 10
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "start"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 300
+      }
+    },
+    {
+      "checkpoint": "start"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 600
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "right"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 90
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "right"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 30
+      }
+    },
+    {
+      "checkpoint": "play"
+    }
+  ],
+  "golden": {
+    "title": {
+      "frame": 1201,
+      "picture": "25590a64",
+      "work_ram": "6cd0841e",
+      "video_ram": "29ee6925",
+      "palette_ram": "b9f12936",
+      "audio_ram": "7d209214",
+      "sound": "7994550e"
+    },
+    "attract": {
+      "frame": 3001,
+      "picture": "c3bd3b5c",
+      "work_ram": "f73bdbf9",
+      "video_ram": "3bbf3560",
+      "palette_ram": "30407f81",
+      "audio_ram": "3741f5bd",
+      "sound": "483af769"
+    },
+    "start": {
+      "frame": 3735,
+      "picture": "36a0c1d6",
+      "work_ram": "b35d1ec3",
+      "video_ram": "5ebdf136",
+      "palette_ram": "a7f29a71",
+      "audio_ram": "b1fa7392",
+      "sound": "787f4481"
+    },
+    "play": {
+      "frame": 4711,
+      "picture": "954536db",
+      "work_ram": "376c3e7d",
+      "video_ram": "011ffca6",
+      "palette_ram": "2aeb34d4",
+      "audio_ram": "7154866a",
+      "sound": "548eab75"
+    }
+  }
+}

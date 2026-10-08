@@ -1,0 +1,181 @@
+{
+  "description": "Dragon World 3 EX, through its IGS025 and IGS022: the attract mode, a coin and a start, and a few moves of a game.",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "dwex"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1200
+      }
+    },
+    {
+      "checkpoint": "title"
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1800
+      }
+    },
+    {
+      "checkpoint": "attract"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "coin"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 420
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "start"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 10
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "start"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 300
+      }
+    },
+    {
+      "checkpoint": "start"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 600
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "right"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 90
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "right"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 30
+      }
+    },
+    {
+      "checkpoint": "play"
+    }
+  ],
+  "golden": {
+    "title": {
+      "frame": 1201,
+      "picture": "d0b2744f",
+      "work_ram": "727a6211",
+      "video_ram": "c49dfb13",
+      "palette_ram": "e476f7cf",
+      "audio_ram": "07e13e6d",
+      "sound": "a7ed0af8"
+    },
+    "attract": {
+      "frame": 3001,
+      "picture": "f5ba6d60",
+      "work_ram": "cc43ce68",
+      "video_ram": "d7847714",
+      "palette_ram": "43ebf179",
+      "audio_ram": "a2b36e48",
+      "sound": "dd7e28f3"
+    },
+    "start": {
+      "frame": 3735,
+      "picture": "15decabc",
+      "work_ram": "004140a6",
+      "video_ram": "22d5e470",
+      "palette_ram": "1b02e159",
+      "audio_ram": "97b7193a",
+      "sound": "a461d91e"
+    },
+    "play": {
+      "frame": 4711,
+      "picture": "cc3d15b3",
+      "work_ram": "3eaa56bd",
+      "video_ram": "521b8c8e",
+      "palette_ram": "9b156fb6",
+      "audio_ram": "626f5a9a",
+      "sound": "dca65dce"
+    }
+  }
+}

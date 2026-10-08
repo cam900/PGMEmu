@@ -1,0 +1,175 @@
+{
+  "description": "DoDonPachi II, through its IGS027A of type 2: the attract mode, a coin and a start, and a few seconds of play.",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "ddp2"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1200
+      }
+    },
+    {
+      "checkpoint": "title"
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1800
+      }
+    },
+    {
+      "checkpoint": "attract"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "coin"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 420
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "start"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 10
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "start"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 300
+      }
+    },
+    {
+      "checkpoint": "start"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 240
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 240
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "up"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 60
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "up"
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "checkpoint": "play"
+    }
+  ],
+  "golden": {
+    "title": {
+      "frame": 1201,
+      "picture": "81243aed",
+      "work_ram": "34af5eeb",
+      "video_ram": "a3c10c7c",
+      "palette_ram": "71347f49",
+      "audio_ram": "37f849ca",
+      "sound": "19503153"
+    },
+    "attract": {
+      "frame": 3001,
+      "picture": "d0af5634",
+      "work_ram": "d3bda86d",
+      "video_ram": "011ffca6",
+      "palette_ram": "291ef856",
+      "audio_ram": "4ae633dc",
+      "sound": "ecb83826"
+    },
+    "start": {
+      "frame": 3735,
+      "picture": "1b21f3b3",
+      "work_ram": "0cbc32f3",
+      "video_ram": "8bc113e0",
+      "palette_ram": "1949d566",
+      "audio_ram": "fabeb5f7",
+      "sound": "b6daa376"
+    },
+    "play": {
+      "frame": 4403,
+      "picture": "288a5b9e",
+      "work_ram": "045eca4b",
+      "video_ram": "897bfa9e",
+      "palette_ram": "629a1c76",
+      "audio_ram": "e888330f",
+      "sound": "3ddf8429"
+    }
+  }
+}

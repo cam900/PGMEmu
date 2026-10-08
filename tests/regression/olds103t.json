@@ -1,0 +1,181 @@
+{
+  "description": "Oriental Legend Super, the unprotected Tencent version: the attract mode, a coin and a start, and a few seconds of play.",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "olds103t"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1200
+      }
+    },
+    {
+      "checkpoint": "title"
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1800
+      }
+    },
+    {
+      "checkpoint": "attract"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "coin"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 420
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "start"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 10
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "start"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 300
+      }
+    },
+    {
+      "checkpoint": "start"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 600
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "right"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 90
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "right"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 30
+      }
+    },
+    {
+      "checkpoint": "play"
+    }
+  ],
+  "golden": {
+    "title": {
+      "frame": 1201,
+      "picture": "441125df",
+      "work_ram": "526c1f45",
+      "video_ram": "011ffca6",
+      "palette_ram": "af988278",
+      "audio_ram": "ad8add80",
+      "sound": "43d207ab"
+    },
+    "attract": {
+      "frame": 3001,
+      "picture": "1e317f70",
+      "work_ram": "03d0997c",
+      "video_ram": "011ffca6",
+      "palette_ram": "c0d71f68",
+      "audio_ram": "f16eeddb",
+      "sound": "47ac5180"
+    },
+    "start": {
+      "frame": 3735,
+      "picture": "c1dcdbe5",
+      "work_ram": "3ae78b7b",
+      "video_ram": "e01ce2b3",
+      "palette_ram": "e67a53e9",
+      "audio_ram": "2c03f8f1",
+      "sound": "98f34416"
+    },
+    "play": {
+      "frame": 4711,
+      "picture": "a2f63b3b",
+      "work_ram": "9c013e4f",
+      "video_ram": "6c85e069",
+      "palette_ram": "ec2ad757",
+      "audio_ram": "c280c82b",
+      "sound": "c4116c05"
+    }
+  }
+}

@@ -1,0 +1,181 @@
+{
+  "description": "Martial Masters, through its IGS027A of type 2: the attract mode, a coin and a start, and a few seconds of a fight.",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "martmast"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1200
+      }
+    },
+    {
+      "checkpoint": "title"
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1800
+      }
+    },
+    {
+      "checkpoint": "attract"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "coin"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 420
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "start"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 10
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "start"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 300
+      }
+    },
+    {
+      "checkpoint": "start"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 600
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "right"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 90
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "right"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 30
+      }
+    },
+    {
+      "checkpoint": "play"
+    }
+  ],
+  "golden": {
+    "title": {
+      "frame": 1201,
+      "picture": "6582348a",
+      "work_ram": "470ef8f9",
+      "video_ram": "688f3bf4",
+      "palette_ram": "05d4ab31",
+      "audio_ram": "3664ff7b",
+      "sound": "94c73be5"
+    },
+    "attract": {
+      "frame": 3001,
+      "picture": "eca440f3",
+      "work_ram": "d4bb6479",
+      "video_ram": "625164fe",
+      "palette_ram": "0b48142f",
+      "audio_ram": "e5a7a456",
+      "sound": "b682a8cf"
+    },
+    "start": {
+      "frame": 3735,
+      "picture": "b74bddec",
+      "work_ram": "07700e47",
+      "video_ram": "a8096ae1",
+      "palette_ram": "4acbe30b",
+      "audio_ram": "f8ec74f7",
+      "sound": "d1491b71"
+    },
+    "play": {
+      "frame": 4711,
+      "picture": "2382d63d",
+      "work_ram": "1c179ffd",
+      "video_ram": "7bbc2551",
+      "palette_ram": "75fd4a41",
+      "audio_ram": "fc0f38ba",
+      "sound": "ef1bd4dc"
+    }
+  }
+}

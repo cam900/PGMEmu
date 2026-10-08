@@ -305,21 +305,15 @@ std::uint32_t Igs027a::wordAt( std::uint32_t address ) const
   }
   if ( top == 0x08 )
   {
+    // The image holds the external ROM decrypted whole, the RTL's XOR of each
+    // read by the table at 0x50000000 included (docs/decisions/0014).
     std::size_t const at = address & 0x7ffffcU;
-    std::uint32_t word = 0;
-    if ( at + 4 <= mExternalRom.size() )
+    if ( at + 4 > mExternalRom.size() )
     {
-      word = static_cast<std::uint32_t>( mExternalRom[at] | ( mExternalRom[at + 1] << 8U ) |
-                                         ( mExternalRom[at + 2] << 16U ) | ( mExternalRom[at + 3] << 24U ) );
+      return 0;
     }
-    if ( type == Igs027aBoard::Type::TYPE2 )
-    {
-      // Type 2 reads its external ROM through the table, each halfword's high
-      // byte XORed with the low byte of its entry.
-      std::uint32_t const key = mXorTable.at( ( address >> 2U ) & 0xffU ) & 0xffU;
-      word ^= ( key << 24U ) | ( key << 8U );
-    }
-    return word;
+    return static_cast<std::uint32_t>( mExternalRom[at] | ( mExternalRom[at + 1] << 8U ) |
+                                       ( mExternalRom[at + 2] << 16U ) | ( mExternalRom[at + 3] << 24U ) );
   }
   return 0;
 }

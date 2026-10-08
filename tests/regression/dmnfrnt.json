@@ -1,0 +1,229 @@
+{
+  "description": "Demon Front, through its IGS027A of type 3: the attract mode, a coin and a start, and a few seconds of play.",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "dmnfrnt"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1200
+      }
+    },
+    {
+      "checkpoint": "title"
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1800
+      }
+    },
+    {
+      "checkpoint": "attract"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "coin"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 420
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "start"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 10
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "start"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 300
+      }
+    },
+    {
+      "checkpoint": "start"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 240
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 240
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "up"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 60
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "up"
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 180
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 180
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 180
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 180
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 600
+      }
+    },
+    {
+      "checkpoint": "play"
+    }
+  ],
+  "golden": {
+    "title": {
+      "frame": 1201,
+      "picture": "afcfb363",
+      "work_ram": "2eb3bcdc",
+      "video_ram": "877cc38d",
+      "palette_ram": "76e20ceb",
+      "audio_ram": "10fc5535",
+      "sound": "b5d46202"
+    },
+    "attract": {
+      "frame": 3001,
+      "picture": "71b989f1",
+      "work_ram": "ac0e4085",
+      "video_ram": "745b0394",
+      "palette_ram": "8e987be4",
+      "audio_ram": "c7cdf732",
+      "sound": "89fdaab8"
+    },
+    "start": {
+      "frame": 3735,
+      "picture": "8d12f528",
+      "work_ram": "410f27c1",
+      "video_ram": "490cbe9b",
+      "palette_ram": "fa1659de",
+      "audio_ram": "444b36c6",
+      "sound": "97c1ad65"
+    },
+    "play": {
+      "frame": 5739,
+      "picture": "5fe49411",
+      "work_ram": "34400a67",
+      "video_ram": "0fa3f2fe",
+      "palette_ram": "9b7d965e",
+      "audio_ram": "cb6c0d6b",
+      "sound": "2a751ca8"
+    }
+  }
+}

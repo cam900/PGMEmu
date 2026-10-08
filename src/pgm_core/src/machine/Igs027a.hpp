@@ -114,8 +114,8 @@ private:
   /// 68000 on the other, `mBank` saying which is the ARM's.
   std::vector<std::uint32_t> mShared;
   std::uint32_t mBank{ 1 };
-  /// The table at 0x50000000 whose low bytes the external ROM's words are
-  /// XORed with on types 1 and 2; on type 3, plain RAM.
+  /// The table at 0x50000000, with which the RTL XORs type 2's external ROM;
+  /// the image's is decrypted whole, so it is RAM and nothing more.
   std::array<std::uint32_t, 0x100> mXorTable{};
   /// What the ARM wrote for the 68000, and the 68000 for the ARM.
   std::uint32_t mLatchToM68k{};

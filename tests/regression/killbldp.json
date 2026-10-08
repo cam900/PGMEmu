@@ -1,0 +1,235 @@
+{
+  "description": "The Killing Blade Plus, through its IGS027A of type 3: the attract mode, a coin and a start, and a few seconds of a fight.",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "killbldp"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1200
+      }
+    },
+    {
+      "checkpoint": "title"
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1800
+      }
+    },
+    {
+      "checkpoint": "attract"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "coin"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 420
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "start"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 10
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "start"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 300
+      }
+    },
+    {
+      "checkpoint": "start"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 600
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "right"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 90
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "right"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 30
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 180
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 180
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 180
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 180
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 600
+      }
+    },
+    {
+      "checkpoint": "play"
+    }
+  ],
+  "golden": {
+    "title": {
+      "frame": 1201,
+      "picture": "c82c51d8",
+      "work_ram": "7074be87",
+      "video_ram": "48e97b85",
+      "palette_ram": "eb7d4c19",
+      "audio_ram": "e63a6207",
+      "sound": "c342cc0c"
+    },
+    "attract": {
+      "frame": 3001,
+      "picture": "0362daf8",
+      "work_ram": "d3f3a3c8",
+      "video_ram": "6ce277a9",
+      "palette_ram": "ba572b72",
+      "audio_ram": "4b18e9fc",
+      "sound": "0741c398"
+    },
+    "start": {
+      "frame": 3735,
+      "picture": "de26979a",
+      "work_ram": "8b9214e1",
+      "video_ram": "eac23509",
+      "palette_ram": "67bc8dbb",
+      "audio_ram": "64d9ba4a",
+      "sound": "782c7b77"
+    },
+    "play": {
+      "frame": 6047,
+      "picture": "17dd939e",
+      "work_ram": "3b8370b0",
+      "video_ram": "4742c867",
+      "palette_ram": "716a546c",
+      "audio_ram": "d0232356",
+      "sound": "1b8c40ec"
+    }
+  }
+}

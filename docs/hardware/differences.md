@@ -17,6 +17,17 @@ makes it true and comes out in the commit that makes it false.
 | ICS2115's voices | `ics2115_osc.sv`'s model, quirks included: the oscillator's direction is read from bit 6 of its control register while a bidirectional loop flips bit 6 of its configuration; a volume loop turns back once and a plain one going up holds; 16-bit samples are the addressed byte twice. The RTL's comments mark much of it as measured on a board. | Where it differs, not known here. | `Ics2115` |
 | IGS022's commands | The 68000's write to the IGS025 that starts one waits until the IGS022 has finished it (`prot_dtack_n` in `PGM.sv`, which its own comment doubts). | The cartridge has no hold on DTACK; the game waits for the completion code in shared RAM. | `Igs022Igs025Board` |
 
+## What the images hold, which the RTL does not load
+
+The emulator runs a cartridge as its image holds it ([0014](../decisions/0014-images-as-retrohq-runs-them.md)).
+
+| What | The image | The RTL |
+|---|---|---|
+| The CAVE games' internal ROM | RetroHQ's recreation of the undumped ROM in its September 2026 edition (564 bytes): the region from 0x20, written as a halfword. | The same recreation's June edition (592 bytes, `type1_cave_fixed.bin`), which writes 0xDD in its place and copies a byte to shared RAM the 68000 does not see. |
+| ket's, espgal's and ddp3's program | Each `move.b d3,(-6,a0)` into sprite RAM is an `or.b`, for RetroHQ's hardware. | The program as dumped. |
+| martmast's ARM programs | The external ROM's initialisation leaves shared RAM alone; the internal ROM does not check the external ROM's checksum. | As dumped. |
+| External ARM ROMs | Decrypted whole. | Decrypted in part as loaded; type 2 XORs each read with a table the ARM writes. |
+
 ## The emulator, where it is not yet the RTL
 
 | What | The emulator | The RTL | Until |
@@ -25,7 +36,6 @@ makes it true and comes out in the commit that makes it false.
 | When the picture is read | A line at its start, sprites a frame at a time ([0011](../decisions/0011-video-is-drawn-by-line-and-by-frame.md)). | Dot by dot, sprites as line buffers free. | not planned |
 | A game's region | The one its image holds (ASIC3's default, the IGS025's default, what the ARM's internal ROM holds), or another of the image's, chosen when it is loaded (`emu.load_game`, `emu.set_region`). | ASIC3 always 0, the world; the IGS025 the world for each game; the ARM what its internal ROM holds. Unchosen, the two agree for every image built from the workspace's sets. | — |
 | The IGS027A's ARM | Runs whole instructions, each access one cycle of its clock, and is brought up to the 68000's time when the 68000 reaches the latch or the shared RAM: what the ARM does is seen up to an instruction's cycles early or late. Its writes land at once. | Interleaves with the 68000 a clock at a time; a write lands a cycle after the core makes it; cache misses stall the ARM, which then catches up, and stall the 68000 on the shared RAM. | not planned |
-| The CAVE games' internal ROM | ket, espgal and ddp3 run the program their images hold: PGMBuilder's recreation of the undumped ROM (564 bytes, `crypt/asicsims/type1_cave.c`). | Its MRAs load RetroHQ's recreation (592 bytes), of the same design, its details otherwise. | — |
 | IGS022's timing | Commands run whole when the IGS025 starts them; the 68000's write waits the ticks the RTL's engine would take if every ROM read hit `prot_cache.sv`. The DMA the engine runs at reset is done at once. | The engine's states one a master tick, ROM reads waiting on DDR when they miss; the reset's DMA takes some 8,200 ticks and more. | not planned |
 | ICS2115's sequencing | The voices of a sample period one after another, each when the RTL's sequencer would load it if both its sample reads hit the cache: 24 master ticks apiece. A register write takes effect at once. | The same order, but a voice whose reads miss the cache waits for SDRAM, whose latency the simulator varies, and a write waits a few cycles for the voice it touches to leave the pipeline. A write that lands close to a voice's turn can reach it one sample earlier or later than here. | not planned |
 | ICS2115's status bit 6 | Never set. | Set while a voice write is queued, a few cycles after each. | not planned |
