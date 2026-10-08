@@ -6,6 +6,7 @@
 #include "GpuTexture.hpp"
 #include "InputMap.hpp"
 #include "InputWindow.hpp"
+#include "ScreenRenderer.hpp"
 #include "VideoWindow.hpp"
 
 #include "pgm/Emulator.hpp"
@@ -73,6 +74,7 @@ private:
   /// The loaded game's regions, the one it runs as ticked; choosing another
   /// powers the board up again as that region.
   void drawRegionMenu();
+  void drawDisplayMenu();
   void drawScreenWindow();
   void drawStatusWindow();
   void drawSoundWindow();
@@ -99,6 +101,13 @@ private:
   std::filesystem::path mInputMapPath;
   InputMap mInputMap;
   std::unique_ptr<InputWindow> mInputWindow;
+  std::unique_ptr<ScreenRenderer> mRenderer;
+  /// Where the display settings are kept, beside imgui.ini; empty when they
+  /// are not kept.
+  std::filesystem::path mDisplayPath;
+  DisplaySettings mDisplay;
+  /// Whether the screen was drawn into the renderer's target this frame.
+  bool mScreenShown{};
   std::string mImguiIniPath;
   bool mQuit{};
   bool mShowStatus{ true };

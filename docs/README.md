@@ -61,6 +61,7 @@ it, never "at the end of the session".
 - [0012: MCP over HTTP is served by cpp-httplib, JSON-lines over TCP by sockets of our own](decisions/0012-network-transports.md)
 - [0013: The ARM7TDMI is our own, written from ARM's manual](decisions/0013-arm7tdmi-core.md)
 - [0014: A cartridge is its image, as RetroHQ's hardware runs it](decisions/0014-images-as-retrohq-runs-them.md)
+- [0015: The screen's shaders are GLSL, compiled offline to SPIR-V and MSL](decisions/0015-shaders-are-compiled-offline.md)
 
 ### Hardware
 - [Differences](hardware/differences.md): where the emulator departs from the RTL, and the RTL from the board

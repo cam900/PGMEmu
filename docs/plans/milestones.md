@@ -21,6 +21,5 @@ a screen. That is why the control API and the headless runner come before most o
 
 *Delivers:*
 
-- Shader presets and integer scaling.
 - Rewind and run-ahead.
 - A macOS app bundle; CI on macOS and Linux.

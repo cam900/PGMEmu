@@ -22,7 +22,6 @@ namespace pgm::app
 namespace
 {
 
-constexpr auto SCREEN_WIDTH = static_cast<float>( video::SCREEN_WIDTH );
 constexpr auto SCREEN_HEIGHT = static_cast<float>( video::SCREEN_HEIGHT );
 
 // The window opens at three times the screen, plus room for the menu bar and a
@@ -79,10 +78,8 @@ std::expected<std::unique_ptr<Application>, std::string> Application::create( Se
 
   // Every shader format the ImGui backend ships bytecode for, so that SDL may
   // pick the native API: Metal on macOS, Vulkan or D3D12 elsewhere.
-  SDL_GPUDevice* const device = SDL_CreateGPUDevice( SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_DXIL |
-                                                         SDL_GPU_SHADERFORMAT_MSL | SDL_GPU_SHADERFORMAT_METALLIB,
-                                                     false,
-                                                     nullptr );
+  SDL_GPUDevice* const device = SDL_CreateGPUDevice(
+      SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_MSL | SDL_GPU_SHADERFORMAT_METALLIB, false, nullptr );
   if ( device == nullptr )
   {
     SDL_DestroyWindow( window );
@@ -102,6 +99,10 @@ std::expected<std::unique_ptr<Application>, std::string> Application::create( Se
   {
     return std::unexpected( sdlError( "creating the screen texture" ) );
   }
+  if ( !application->mRenderer->valid() )
+  {
+    return std::unexpected( sdlError( "creating the screen's shaders" ) );
+  }
   return application;
 }
 
@@ -112,7 +113,8 @@ Application::Application( SDL_Window* window, SDL_GPUDevice* device, Settings se
       mEmulation{ std::make_unique<EmulationThread>( std::move( settings ), mAudio.get() ) },
       mVideo{ std::make_unique<VideoWindow>( device,
                                              [this]( std::string const& method, control::Json params )
-                                             { return request( method, std::move( params ) ); } ) }
+                                             { return request( method, std::move( params ) ); } ) },
+      mRenderer{ std::make_unique<ScreenRenderer>( device ) }
 {
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
@@ -125,6 +127,7 @@ Application::Application( SDL_Window* window, SDL_GPUDevice* device, Settings se
   {
     mImguiIniPath = std::string{ prefPath } + "imgui.ini";
     mInputMapPath = std::filesystem::path{ prefPath } / "input.json";
+    mDisplayPath = std::filesystem::path{ prefPath } / "display.json";
     SDL_free( prefPath );
     io.IniFilename = mImguiIniPath.c_str();
   }
@@ -134,6 +137,10 @@ Application::Application( SDL_Window* window, SDL_GPUDevice* device, Settings se
   }
 
   mInputMap = mInputMapPath.empty() ? InputMap::defaults() : InputMap::load( mInputMapPath );
+  if ( !mDisplayPath.empty() )
+  {
+    mDisplay = loadDisplaySettings( mDisplayPath );
+  }
   mInputWindow = std::make_unique<InputWindow>( mInputMap,
                                                 mGamepads,
                                                 [this]
@@ -164,6 +171,7 @@ Application::~Application()
   ImGui_ImplSDLGPU3_Shutdown();
   ImGui::DestroyContext();
   mScreen.reset();
+  mRenderer.reset();
   mVideo.reset();
   // The servers hand requests to the emulation thread, which feeds the audio
   // stream: they go in that order.
@@ -312,6 +320,11 @@ void Application::drawMenuBar()
     }
     ImGui::EndMenu();
   }
+  if ( ImGui::BeginMenu( "Display" ) )
+  {
+    drawDisplayMenu();
+    ImGui::EndMenu();
+  }
   if ( ImGui::BeginMenu( "View" ) )
   {
     ImGui::MenuItem( STATUS_WINDOW, nullptr, &mShowStatus );
@@ -348,31 +361,88 @@ void Application::drawRegionMenu()
   }
 }
 
+void Application::drawDisplayMenu()
+{
+  bool changed = false;
+  for ( auto const preset :
+        { DisplaySettings::Preset::SHARP, DisplaySettings::Preset::SCANLINES, DisplaySettings::Preset::CRT } )
+  {
+    if ( ImGui::MenuItem( std::string{ nameOf( preset ) }.c_str(), nullptr, mDisplay.preset == preset ) )
+    {
+      mDisplay.preset = preset;
+      changed = true;
+    }
+  }
+  ImGui::Separator();
+  changed |= ImGui::MenuItem( "Whole multiples only", nullptr, &mDisplay.integerScale );
+  // A slider changes the picture as it is dragged, and is kept when let go.
+  // Its ID is its own: the Scanlines preset's menu item has the same label.
+  auto const slider = [&changed]( char const* label, float& value )
+  {
+    ImGui::PushID( "setting" );
+    ImGui::SliderFloat( label, &value, 0.0F, 1.0F );
+    changed |= ImGui::IsItemDeactivatedAfterEdit();
+    ImGui::PopID();
+  };
+  if ( mDisplay.preset != DisplaySettings::Preset::SHARP )
+  {
+    ImGui::Separator();
+    slider( "Scanlines", mDisplay.scanlines );
+  }
+  if ( mDisplay.preset == DisplaySettings::Preset::CRT )
+  {
+    slider( "Curvature", mDisplay.curvature );
+    slider( "Mask", mDisplay.mask );
+  }
+  if ( changed && !mDisplayPath.empty() )
+  {
+    saveDisplaySettings( mDisplay, mDisplayPath );
+  }
+}
+
 void Application::drawScreenWindow()
 {
   ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2{ 0.0F, 0.0F } );
   bool const open = ImGui::Begin( SCREEN_WINDOW, nullptr, ImGuiWindowFlags_NoScrollbar );
   ImGui::PopStyleVar();
   mScreenFocused = ImGui::IsWindowFocused( ImGuiFocusedFlags_RootAndChildWindows );
+  mScreenShown = false;
   if ( open )
   {
-    // The largest whole multiple of the screen that fits, centred: a whole
-    // multiple keeps every emulated pixel the same size.
+    // Sized in the display's pixels, which the shader draws, centred. The
+    // picture is 448 by 224 shaped 4:3, as the board's monitor showed it;
+    // scaled by whole multiples of its height, or as large as fits.
+    float const pixelsPerPoint = ImGui::GetIO().DisplayFramebufferScale.y;
     ImVec2 const available = ImGui::GetContentRegionAvail();
-    float const scale =
-        std::max( 1.0F, std::floor( std::min( available.x / SCREEN_WIDTH, available.y / SCREEN_HEIGHT ) ) );
-    ImVec2 const size{ SCREEN_WIDTH * scale, SCREEN_HEIGHT * scale };
-    ImVec2 const cursor = ImGui::GetCursorPos();
-    ImGui::SetCursorPos( ImVec2{ cursor.x + std::max( 0.0F, ( available.x - size.x ) / 2.0F ),
-                                 cursor.y + std::max( 0.0F, ( available.y - size.y ) / 2.0F ) } );
+    float const baseWidth = SCREEN_HEIGHT * 4.0F / 3.0F;
+    float scale = std::min( available.x * pixelsPerPoint / baseWidth, available.y * pixelsPerPoint / SCREEN_HEIGHT );
+    if ( mDisplay.integerScale )
+    {
+      scale = std::max( 1.0F, std::floor( scale ) );
+    }
+    auto const width = static_cast<std::uint32_t>( std::lround( baseWidth * scale ) );
+    auto const height = static_cast<std::uint32_t>( std::lround( SCREEN_HEIGHT * scale ) );
+    ImVec2 const size{ static_cast<float>( width ) / pixelsPerPoint, static_cast<float>( height ) / pixelsPerPoint };
+    // Centred, on a whole pixel of the display: the shader's output is shown a
+    // pixel for a pixel, and half a pixel off would sample some of its rows
+    // twice and others not at all.
+    ImVec2 const cursor = ImGui::GetCursorScreenPos();
+    auto const onPixel = [pixelsPerPoint]( float points )
+    { return std::round( points * pixelsPerPoint ) / pixelsPerPoint; };
+    ImGui::SetCursorScreenPos( ImVec2{ onPixel( cursor.x + std::max( 0.0F, ( available.x - size.x ) / 2.0F ) ),
+                                       onPixel( cursor.y + std::max( 0.0F, ( available.y - size.y ) / 2.0F ) ) } );
 
-    // Sampled nearest, so that magnification copies pixels instead of blending
-    // them; the sampler is restored for the rest of the interface.
-    ImDrawList* const drawList = ImGui::GetWindowDrawList();
-    ImGuiPlatformIO const& platform = ImGui::GetPlatformIO();
-    drawList->AddCallback( platform.DrawCallback_SetSamplerNearest, nullptr );
-    ImGui::Image( ImTextureRef{ reinterpret_cast<ImTextureID>( mScreen->texture() ) }, size );
-    drawList->AddCallback( platform.DrawCallback_SetSamplerLinear, nullptr );
+    // The shader's output is shown a pixel for a pixel: sampled nearest, the
+    // sampler restored for the rest of the interface.
+    if ( SDL_GPUTexture* const target = width > 0 && height > 0 ? mRenderer->target( width, height ) : nullptr )
+    {
+      ImDrawList* const drawList = ImGui::GetWindowDrawList();
+      ImGuiPlatformIO const& platform = ImGui::GetPlatformIO();
+      drawList->AddCallback( platform.DrawCallback_SetSamplerNearest, nullptr );
+      ImGui::Image( ImTextureRef{ reinterpret_cast<ImTextureID>( target ) }, size );
+      drawList->AddCallback( platform.DrawCallback_SetSamplerLinear, nullptr );
+      mScreenShown = true;
+    }
   }
   ImGui::End();
 }
@@ -501,6 +571,10 @@ void Application::renderFrame()
     mFrameChanged = false;
   }
   mVideo->upload( commands );
+  if ( mScreenShown )
+  {
+    mRenderer->render( commands, *mScreen, mDisplay );
+  }
 
   SDL_GPUTexture* swapchain = nullptr;
   if ( SDL_WaitAndAcquireGPUSwapchainTexture( commands, mWindow, &swapchain, nullptr, nullptr ) &&
