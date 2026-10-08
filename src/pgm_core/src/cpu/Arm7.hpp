@@ -110,7 +110,11 @@ public:
   [[nodiscard]] std::uint32_t reg( unsigned index ) const;
   /// The address of the instruction executed next.
   [[nodiscard]] std::uint32_t pc() const;
-  [[nodiscard]] std::int64_t cycles() const;
+
+  [[nodiscard]] std::int64_t cycles() const
+  {
+    return mState.cycles;
+  }
 
 private:
   // Registers and modes.

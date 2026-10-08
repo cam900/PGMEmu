@@ -151,11 +151,6 @@ std::uint32_t Arm7::pc() const
   return *mRegisters[PC] - ( thumb() ? 4U : 8U );
 }
 
-std::int64_t Arm7::cycles() const
-{
-  return mState.cycles;
-}
-
 // ---------------------------------------------------------------------------
 // Registers and modes
 

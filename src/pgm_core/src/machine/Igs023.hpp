@@ -148,6 +148,13 @@ private:
   textPixel( std::uint32_t code, std::uint8_t attributes, std::uint32_t x, std::uint32_t y ) const;
   [[nodiscard]] std::uint16_t
   backgroundPixel( std::uint32_t code, std::uint8_t attributes, std::uint32_t x, std::uint32_t y ) const;
+  /// A tile's row `y` as textPixel() and backgroundPixel() give its pixels,
+  /// from its left edge on screen: the tile ROM read once for all of them.
+  void textRow( std::uint32_t code, std::uint8_t attributes, std::uint32_t y, std::array<std::uint16_t, 8>& out ) const;
+  void backgroundRow( std::uint32_t code,
+                      std::uint8_t attributes,
+                      std::uint32_t y,
+                      std::array<std::uint16_t, 32>& out ) const;
   /// Palette entry `entry` as R, G, B, A.
   [[nodiscard]] std::array<std::uint8_t, 4> colour( std::uint32_t entry ) const;
   void drawBackground( int line, std::array<std::uint16_t, WIDTH>& out ) const;

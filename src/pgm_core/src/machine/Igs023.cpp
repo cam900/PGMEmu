@@ -229,6 +229,50 @@ Igs023::backgroundPixel( std::uint32_t code, std::uint8_t attributes, std::uint3
              : static_cast<std::uint16_t>( BACKGROUND_PALETTE + ( ( ( attributes >> 1U ) & 0x1fU ) << 5U ) + value );
 }
 
+void Igs023::textRow( std::uint32_t code,
+                      std::uint8_t attributes,
+                      std::uint32_t y,
+                      std::array<std::uint16_t, 8>& out ) const
+{
+  bool const flipY = ( attributes & 0x80U ) != 0;
+  bool const flipX = ( attributes & 0x40U ) != 0;
+  std::uint32_t const row = flipY ? ( ~y & 7U ) : ( y & 7U );
+  std::uint32_t const pixels = tileRom( ( code << 5U ) | ( row << 2U ) );
+  auto const palette = static_cast<std::uint16_t>( TEXT_PALETTE + ( ( ( attributes >> 1U ) & 0x1fU ) << 4U ) );
+  for ( std::uint32_t pixel = 0; pixel < 8; ++pixel )
+  {
+    std::uint32_t const value = ( pixels >> ( pixel * 4 ) ) & 0xfU;
+    out.at( flipX ? 7 - pixel : pixel ) = value == 0xf ? NONE : static_cast<std::uint16_t>( palette + value );
+  }
+}
+
+void Igs023::backgroundRow( std::uint32_t code,
+                            std::uint8_t attributes,
+                            std::uint32_t y,
+                            std::array<std::uint16_t, 32>& out ) const
+{
+  bool const flipY = ( attributes & 0x80U ) != 0;
+  bool const flipX = ( attributes & 0x40U ) != 0;
+  std::uint32_t const row = flipY ? ( ~y & 31U ) : ( y & 31U );
+  std::uint32_t const rowAddress = ( ( code << 5U ) | row ) * 20;
+  // The row's 160 bits, and the word after them that backgroundPixel()
+  // reads with the last group.
+  std::array<std::uint32_t, 6> words{};
+  for ( std::uint32_t i = 0; i < words.size(); ++i )
+  {
+    words.at( i ) = tileRom( rowAddress + ( i * 4 ) );
+  }
+  auto const palette = static_cast<std::uint16_t>( BACKGROUND_PALETTE + ( ( ( attributes >> 1U ) & 0x1fU ) << 5U ) );
+  for ( std::uint32_t pixel = 0; pixel < 32; ++pixel )
+  {
+    std::uint32_t const bit = pixel * 5;
+    std::uint64_t const pair =
+        words.at( bit >> 5U ) | ( static_cast<std::uint64_t>( words.at( ( bit >> 5U ) + 1 ) ) << 32U );
+    std::uint32_t const value = static_cast<std::uint32_t>( pair >> ( bit & 31U ) ) & 0x1fU;
+    out.at( flipX ? 31 - pixel : pixel ) = value == 0x1f ? NONE : static_cast<std::uint16_t>( palette + value );
+  }
+}
+
 std::array<std::uint8_t, 4> Igs023::colour( std::uint32_t entry ) const
 {
   // xRGB555, each 5-bit channel widened as PGM.sv widens it.
@@ -250,12 +294,17 @@ void Igs023::drawText( int line, std::array<std::uint16_t, WIDTH>& out ) const
   std::uint32_t const y = ( static_cast<std::uint32_t>( line ) + mControl[SCROLL_FG_Y] ) & 0xffU;
   std::uint32_t const x = mControl[SCROLL_FG_X] & 0x1ffU;
   std::uint32_t const rowBase = 0x4000U + ( ( y >> 3U ) << 8U );
+  std::array<std::uint16_t, 8> tile{};
   for ( int i = 0; i < WIDTH; ++i )
   {
     std::uint32_t const at = ( x & 7U ) + static_cast<std::uint32_t>( i );
-    std::uint32_t const column = ( ( x >> 3U ) + ( at >> 3U ) ) & 63U;
-    std::uint32_t const entry = rowBase + ( column * 4 );
-    out.at( static_cast<std::size_t>( i ) ) = textPixel( vramWord( entry ), vramAt( entry + 2 ), at, y );
+    if ( i == 0 || ( at & 7U ) == 0 )
+    {
+      std::uint32_t const column = ( ( x >> 3U ) + ( at >> 3U ) ) & 63U;
+      std::uint32_t const entry = rowBase + ( column * 4 );
+      textRow( vramWord( entry ), vramAt( entry + 2 ), y, tile );
+    }
+    out.at( static_cast<std::size_t>( i ) ) = tile.at( at & 7U );
   }
 }
 
@@ -268,13 +317,17 @@ void Igs023::drawBackground( int line, std::array<std::uint16_t, WIDTH>& out ) c
   std::uint32_t const scroll = vramWord( scrollAt );
   std::uint32_t const x = ( mControl[SCROLL_BG_X] + scroll ) & 0x7ffU;
   std::uint32_t const rowBase = ( y >> 5U ) << 8U;
+  std::array<std::uint16_t, 32> tile{};
   for ( int i = 0; i < WIDTH; ++i )
   {
     std::uint32_t const at = ( x & 31U ) + static_cast<std::uint32_t>( i );
-    std::uint32_t const column = ( ( x >> 5U ) + ( at >> 5U ) ) & 63U;
-    std::uint32_t const entry = rowBase + ( column * 4 );
-    out.at( static_cast<std::size_t>( i ) ) =
-        backgroundPixel( vramWord( entry ) & 0x7fffU, vramAt( entry + 2 ), at, y );
+    if ( i == 0 || ( at & 31U ) == 0 )
+    {
+      std::uint32_t const column = ( ( x >> 5U ) + ( at >> 5U ) ) & 63U;
+      std::uint32_t const entry = rowBase + ( column * 4 );
+      backgroundRow( vramWord( entry ) & 0x7fffU, vramAt( entry + 2 ), y, tile );
+    }
+    out.at( static_cast<std::size_t>( i ) ) = tile.at( at & 31U );
   }
 }
 

@@ -85,6 +85,9 @@ private:
   std::uint32_t readWord( std::uint32_t address );
   /// The same word, without.
   [[nodiscard]] std::uint32_t wordAt( std::uint32_t address ) const;
+  /// The internal and the external ROM's words at `address`.
+  [[nodiscard]] std::uint32_t internalRomWord( std::uint32_t address ) const;
+  [[nodiscard]] std::uint32_t externalRomWord( std::uint32_t address ) const;
   /// The index of the shared RAM's word for the ARM at `address`, in its bank.
   [[nodiscard]] std::size_t sharedIndexForArm( std::uint32_t address ) const;
   /// The index of the internal RAM's word at `address`, in type 3's second

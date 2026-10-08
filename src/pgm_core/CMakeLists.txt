@@ -34,7 +34,6 @@ add_library( pgm_core
   src/machine/Igs026.cpp
   src/machine/M68k.cpp
   src/machine/Machine.cpp
-  src/machine/Sdram.cpp
   src/machine/SpriteEngine.cpp
   src/machine/V3021.cpp
   src/machine/Z80.cpp )

@@ -220,7 +220,21 @@ void Igs027a::serializeState( Archive& archive )
 
 std::uint32_t Igs027a::read( std::uint32_t address, unsigned size, unsigned /*access*/ )
 {
-  std::uint32_t const word = readWord( address );
+  // Most reads are the ROMs', which nothing happens to: they go straight
+  // there, but for type 3's FIQ vector.
+  std::uint32_t word = 0;
+  if ( address < INTERNAL_ROM_END && ( mBoard.type != Igs027aBoard::Type::TYPE3 || ( address & ~3U ) != FIQ_VECTOR ) )
+  {
+    word = internalRomWord( address );
+  }
+  else if ( ( address >> 24U ) == 0x08 && mBoard.type != Igs027aBoard::Type::TYPE1 )
+  {
+    word = externalRomWord( address );
+  }
+  else
+  {
+    word = readWord( address );
+  }
   if ( size == 4 )
   {
     return word;
@@ -261,14 +275,32 @@ std::uint32_t Igs027a::readWord( std::uint32_t address )
   return word;
 }
 
+std::uint32_t Igs027a::internalRomWord( std::uint32_t address ) const
+{
+  std::size_t const at = address & ( INTERNAL_ROM_END - 4 );
+  return static_cast<std::uint32_t>( mInternalRom[at] | ( mInternalRom[at + 1] << 8U ) |
+                                     ( mInternalRom[at + 2] << 16U ) | ( mInternalRom[at + 3] << 24U ) );
+}
+
+std::uint32_t Igs027a::externalRomWord( std::uint32_t address ) const
+{
+  // The image holds the external ROM decrypted whole, the RTL's XOR of each
+  // read by the table at 0x50000000 included (docs/decisions/0014).
+  std::size_t const at = address & 0x7ffffcU;
+  if ( at + 4 > mExternalRom.size() )
+  {
+    return 0;
+  }
+  return static_cast<std::uint32_t>( mExternalRom[at] | ( mExternalRom[at + 1] << 8U ) |
+                                     ( mExternalRom[at + 2] << 16U ) | ( mExternalRom[at + 3] << 24U ) );
+}
+
 std::uint32_t Igs027a::wordAt( std::uint32_t address ) const
 {
   auto const type = mBoard.type;
   if ( address < INTERNAL_ROM_END )
   {
-    std::size_t const at = address & ~3U;
-    return static_cast<std::uint32_t>( mInternalRom[at] | ( mInternalRom[at + 1] << 8U ) |
-                                       ( mInternalRom[at + 2] << 16U ) | ( mInternalRom[at + 3] << 24U ) );
+    return internalRomWord( address );
   }
   std::uint32_t const top = address >> 24U;
   if ( top == 0x10 || top == 0x18 )
@@ -305,15 +337,7 @@ std::uint32_t Igs027a::wordAt( std::uint32_t address ) const
   }
   if ( top == 0x08 )
   {
-    // The image holds the external ROM decrypted whole, the RTL's XOR of each
-    // read by the table at 0x50000000 included (docs/decisions/0014).
-    std::size_t const at = address & 0x7ffffcU;
-    if ( at + 4 > mExternalRom.size() )
-    {
-      return 0;
-    }
-    return static_cast<std::uint32_t>( mExternalRom[at] | ( mExternalRom[at + 1] << 8U ) |
-                                       ( mExternalRom[at + 2] << 16U ) | ( mExternalRom[at + 3] << 24U ) );
+    return externalRomWord( address );
   }
   return 0;
 }

@@ -24,5 +24,4 @@ a screen. That is why the control API and the headless runner come before most o
 - Input mapping UI for four players and several gamepads.
 - Shader presets and integer scaling.
 - Rewind and run-ahead.
-- A profiling pass against three times real time on every game.
 - A macOS app bundle; CI on macOS and Linux.

@@ -44,4 +44,72 @@ struct Sdram
   [[nodiscard]] std::uint32_t longWord( std::uint32_t address ) const;
 };
 
+/// The bytes of the region holding `address`, from `address` on; empty where
+/// nothing was loaded. Inline, as every ROM read of the machine comes here.
+inline std::span<std::uint8_t const> sdramFrom( Sdram const& sdram, std::uint32_t address )
+{
+  auto const within = [address]( std::uint32_t at, std::span<std::uint8_t const> bytes )
+  {
+    std::uint32_t const offset = address - at;
+    return offset < bytes.size() ? bytes.subspan( offset ) : std::span<std::uint8_t const>{};
+  };
+  // Highest first: every region starts above the end of the one before.
+  if ( address >= Sdram::CART_A_ROM_AT )
+  {
+    return within( Sdram::CART_A_ROM_AT, sdram.cartARom );
+  }
+  if ( address >= Sdram::CART_B_ROM_AT )
+  {
+    return within( Sdram::CART_B_ROM_AT, sdram.cartBRom );
+  }
+  if ( address >= Sdram::CART_MUSIC_AT )
+  {
+    return within( Sdram::CART_MUSIC_AT, sdram.cartMusic );
+  }
+  if ( address >= Sdram::CART_TILES_AT )
+  {
+    return within( Sdram::CART_TILES_AT, sdram.cartTiles );
+  }
+  if ( address >= Sdram::CART_PROGRAM_AT )
+  {
+    return within( Sdram::CART_PROGRAM_AT, sdram.cartProgram );
+  }
+  if ( address >= Sdram::BIOS_MUSIC_AT )
+  {
+    return within( Sdram::BIOS_MUSIC_AT, sdram.biosMusic );
+  }
+  if ( address >= Sdram::BIOS_TILES_AT )
+  {
+    return within( Sdram::BIOS_TILES_AT, sdram.biosTiles );
+  }
+  return within( Sdram::BIOS_PROGRAM_AT, sdram.biosProgram );
+}
+
+inline std::uint8_t Sdram::byte( std::uint32_t address ) const
+{
+  auto const bytes = sdramFrom( *this, address );
+  return bytes.empty() ? 0 : bytes[0];
+}
+
+inline std::uint16_t Sdram::word( std::uint32_t address ) const
+{
+  auto const bytes = sdramFrom( *this, address );
+  if ( bytes.size() >= 2 )
+  {
+    return static_cast<std::uint16_t>( bytes[0] | ( bytes[1] << 8U ) );
+  }
+  return static_cast<std::uint16_t>( byte( address ) | ( byte( address + 1 ) << 8U ) );
+}
+
+inline std::uint32_t Sdram::longWord( std::uint32_t address ) const
+{
+  auto const bytes = sdramFrom( *this, address );
+  if ( bytes.size() >= 4 )
+  {
+    return static_cast<std::uint32_t>( bytes[0] ) | ( static_cast<std::uint32_t>( bytes[1] ) << 8U ) |
+           ( static_cast<std::uint32_t>( bytes[2] ) << 16U ) | ( static_cast<std::uint32_t>( bytes[3] ) << 24U );
+  }
+  return static_cast<std::uint32_t>( word( address ) ) | ( static_cast<std::uint32_t>( word( address + 2 ) ) << 16U );
+}
+
 } // namespace pgm::machine
