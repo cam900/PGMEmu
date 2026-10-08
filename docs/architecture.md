@@ -180,7 +180,8 @@ gamepad handling and debugger layout; none of its code is used
 second, whatever the display's refresh rate. The sound goes to an SDL audio stream at the chip's
 own rate; SDL resamples it to the device's, and dynamic rate control pulls that resampling by up
 to half a percent to keep the queue near its target as the two clocks drift. Without an audio
-device the clock paces alone. Fast-forward, pause, frame step and rewind sit on top of it.
+device the clock paces alone. Fast-forward, pause, frame step, rewind and run-ahead
+([0019](decisions/0019-run-ahead.md)) sit on top of it.
 
 **Input:**
 

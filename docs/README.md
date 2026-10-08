@@ -65,6 +65,7 @@ it, never "at the end of the session".
 - [0016: Vertical games are known by their set's name](decisions/0016-vertical-games-by-set-name.md) (superseded by 0017)
 - [0017: Vertical games are known by their image's flag](decisions/0017-vertical-games-by-image-flag.md)
 - [0018: Rewind keeps a whole state for every frame](decisions/0018-rewind-keeps-every-frame.md)
+- [0019: Run-ahead is one setting for every game, off unless chosen](decisions/0019-run-ahead.md)
 
 ### Hardware
 - [Differences](hardware/differences.md): where the emulator departs from the RTL, and the RTL from the board

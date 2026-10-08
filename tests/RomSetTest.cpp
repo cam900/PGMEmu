@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "pgm/Emulator.hpp"
 #include "pgm/cart/Bios.hpp"
 #include "pgm/cart/PgmImage.hpp"
 #include "pgm/io/RomSources.hpp"
@@ -213,4 +214,68 @@ TEST_CASE( "a save state taken mid-run gives back the same frames, memory and so
   broken.resize( broken.size() / 2 );
   REQUIRE_FALSE( machine.loadState( broken ) );
   REQUIRE( machine.now() == std::get<5>( second ) );
+}
+
+TEST_CASE( "running ahead and coming back changes nothing, on every board", "[roms]" )
+{
+  // Run-ahead saves the state after each frame, runs on past it and loads it
+  // again: a frame later the run must be the one it would have been. One game
+  // a board, each run past frame 767, where killbld first asks its IGS025.
+  auto const zipPath = romsDirectory() / "pgm.zip";
+  if ( !std::filesystem::exists( zipPath ) || !std::filesystem::exists( pgmDirectory() / "orlegend.pgm" ) )
+  {
+    SKIP( "needs " << zipPath << " and the images in " << pgmDirectory() );
+  }
+  constexpr int warmUp = 800;
+  constexpr int compared = 30;
+  constexpr int ahead = 2;
+
+  for ( char const* game : { "orlegend", "drgw2", "killbld", "kovsh", "ket", "kov2", "theglad", "olds103t" } )
+  {
+    CAPTURE( game );
+    pgm::Emulator emulator{ pgm::Settings{
+        .biosSources = { zipPath }, .romDirectory = pgmDirectory(), .stateDirectory = {} } };
+    REQUIRE( emulator.loadGameByName( game ) );
+    pgm::machine::Machine& machine = *emulator.machine();
+    machine.runFrames( warmUp );
+    std::vector<std::uint8_t> const start = machine.saveState();
+
+    // Every frame's picture and sound, and the RAMs at the end.
+    auto const run = [&machine]( bool runAhead )
+    {
+      std::vector<std::vector<std::uint8_t>> pictures;
+      std::vector<std::int16_t> sound;
+      for ( int frame = 0; frame < compared; ++frame )
+      {
+        machine.runFrames( 1 );
+        pictures.emplace_back( machine.picture().begin(), machine.picture().end() );
+        for ( auto const& f : machine.audio() )
+        {
+          sound.insert( sound.end(), { f.left, f.right } );
+        }
+        if ( runAhead )
+        {
+          std::vector<std::uint8_t> const state = machine.saveState();
+          machine.runFrames( ahead );
+          REQUIRE( machine.loadState( state ) );
+        }
+      }
+      auto const bytes = []( std::span<std::uint8_t const> span )
+      { return std::vector<std::uint8_t>( span.begin(), span.end() ); };
+      return std::tuple{
+        pictures,     sound, bytes( machine.workRam() ), bytes( machine.z80Ram() ), bytes( machine.videoRam() ),
+        machine.now()
+      };
+    };
+    auto const straight = run( false );
+    REQUIRE( machine.loadState( start ) );
+    auto const ahead2 = run( true );
+
+    REQUIRE( std::get<5>( straight ) == std::get<5>( ahead2 ) );
+    REQUIRE( std::get<0>( straight ) == std::get<0>( ahead2 ) );
+    REQUIRE( std::get<1>( straight ) == std::get<1>( ahead2 ) );
+    REQUIRE( std::get<2>( straight ) == std::get<2>( ahead2 ) );
+    REQUIRE( std::get<3>( straight ) == std::get<3>( ahead2 ) );
+    REQUIRE( std::get<4>( straight ) == std::get<4>( ahead2 ) );
+  }
 }

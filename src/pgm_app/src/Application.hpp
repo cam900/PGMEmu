@@ -151,6 +151,9 @@ private:
   control::Json mSettings = control::Json::object();
   /// Whether the last seconds are kept to be rewound through.
   bool mRewindKept{ true };
+  /// Frames run ahead of each frame kept, 0 to MAX_RUN_AHEAD.
+  int mRunAhead{};
+  static constexpr int MAX_RUN_AHEAD = 3;
   /// Whether the emulator has been told where the BIOS is.
   bool mHaveBios{};
   /// The game the window's title names, and the frames until it is asked

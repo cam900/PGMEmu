@@ -60,6 +60,11 @@ public:
   /// or not; let go, the game runs on from there.
   void setRewinding( bool held );
 
+  /// How many frames past each frame run are run and shown, then taken back,
+  /// so that a control is seen sooner; 0 for none
+  /// (docs/decisions/0019-run-ahead.md).
+  void setRunAhead( int frames );
+
   /// Copies the last complete picture into `out` if it is newer than
   /// `picturesSeen`, and updates that; false if there is none newer.
   bool takePicture( std::int64_t& picturesSeen, std::vector<std::uint8_t>& out );
@@ -74,8 +79,11 @@ private:
   void loop();
   /// Answers every request waiting, on the emulation thread.
   void serveRequests();
-  /// Runs one frame and hands its sound and picture on, and keeps its state.
+  /// Runs one frame and hands its sound and picture on, and keeps its state;
+  /// with run-ahead, the picture is that of the frames run past it.
   void runFrame( machine::Machine& machine );
+  /// Keeps `state` as the latest of the history, while one is kept.
+  void keep( std::vector<std::uint8_t> state );
   /// Goes back to the frame before the last kept, and hands its picture on.
   void stepBack( machine::Machine& machine );
   /// Forgets the states kept when they are not for the cartridge running:
@@ -98,6 +106,7 @@ private:
   std::atomic<std::uint64_t> mHostInputs{};
   std::atomic<bool> mRewindKept{ true };
   std::atomic<bool> mRewinding{};
+  std::atomic<int> mRunAhead{};
 
   /// The states after the last frames run, the latest last, and the game and
   /// region they are of.

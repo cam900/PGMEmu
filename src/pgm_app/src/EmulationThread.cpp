@@ -109,6 +109,11 @@ void EmulationThread::setRewindKept( bool kept )
   mRewindKept = kept;
 }
 
+void EmulationThread::setRunAhead( int frames )
+{
+  mRunAhead = frames;
+}
+
 void EmulationThread::setRewinding( bool held )
 {
   if ( held && !mRewinding.exchange( true ) && mAudio != nullptr )
@@ -158,11 +163,32 @@ void EmulationThread::runFrame( machine::Machine& machine )
   {
     mAudio->push( machine.audio(), machine.audioRate() );
   }
-  if ( machine.picturesDrawn() != mMachinePictures )
+
+  // Frames run only to be shown would stop at a breakpoint or a watchpoint,
+  // or reach an audio capture, that the frame kept never did.
+  int const ahead = mRunAhead;
+  if ( ahead <= 0 || !machine.breakpoints().empty() || !machine.watchpoints().empty() || machine.audioListened() )
   {
-    publishPicture( machine );
+    if ( machine.picturesDrawn() != mMachinePictures )
+    {
+      publishPicture( machine );
+    }
+    keep( mRewindKept ? machine.saveState() : std::vector<std::uint8_t>{} );
+    return;
   }
 
+  // On with the same controls held, the last of those frames shown and their
+  // sound dropped; then back to the frame kept, a state the history keeps too.
+  std::vector<std::uint8_t> state = machine.saveState();
+  machine.runFrames( ahead );
+  publishPicture( machine );
+  machine.loadState( state );
+  mMachinePictures = machine.picturesDrawn();
+  keep( std::move( state ) );
+}
+
+void EmulationThread::keep( std::vector<std::uint8_t> state )
+{
   checkHistory();
   if ( !mRewindKept )
   {
@@ -173,7 +199,7 @@ void EmulationThread::runFrame( machine::Machine& machine )
   {
     mHistory.pop_front();
   }
-  mHistory.push_back( machine.saveState() );
+  mHistory.push_back( std::move( state ) );
 }
 
 void EmulationThread::stepBack( machine::Machine& machine )

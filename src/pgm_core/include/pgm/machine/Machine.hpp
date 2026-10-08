@@ -278,6 +278,8 @@ public:
   [[nodiscard]] double audioRate() const;
   /// Called with audio() as every run ends; an empty function stops the calls.
   void setAudioListener( std::function<void( std::span<AudioFrame const> )> listener );
+  /// Whether a listener is set: a run then reaches more than the caller.
+  [[nodiscard]] bool audioListened() const;
   [[nodiscard]] std::array<Ics2115Voice, 32> const& ics2115Voices() const;
   [[nodiscard]] std::size_t ics2115ActiveVoices() const;
 

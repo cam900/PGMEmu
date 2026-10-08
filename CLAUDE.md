@@ -43,6 +43,7 @@ scripts/pgmemu.py video.screenshot path=build/shot.png
 ctest --preset release -L regression                # golden frames of the BIOS, every game and every page
 build/release/src/pgm_cli/pgmemu-cli --batch tests/regression/orlegend.json --bios ../ROMS/pgm.zip --rom-dir roms --record   # re-record one
 ./scripts/benchmark.sh                              # headless speed of every game
+./scripts/measure-lag.py                            # the frame each game first answers a control on, about 6 min
 ./scripts/compile-shaders.sh                        # the screen's shaders, after changing their GLSL (brew install glslang spirv-cross)
 ./scripts/fetch-680x0-tests.sh                      # the SingleStepTests 68000 suite
 ./scripts/fetch-z80-tests.sh                        # the SingleStepTests Z80 suite, 1.4 GB to fetch

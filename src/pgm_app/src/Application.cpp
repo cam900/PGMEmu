@@ -157,6 +157,11 @@ Application::Application( SDL_Window* window, SDL_GPUDevice* device, Settings se
     mRewindKept = mSettings.at( "rewind" ).get<bool>();
   }
   mEmulation->setRewindKept( mRewindKept );
+  if ( mSettings.contains( "run_ahead" ) && mSettings.at( "run_ahead" ).is_number_integer() )
+  {
+    mRunAhead = std::clamp( mSettings.at( "run_ahead" ).get<int>(), 0, MAX_RUN_AHEAD );
+  }
+  mEmulation->setRunAhead( mRunAhead );
 
   mInputMap = mInputMapPath.empty() ? InputMap::defaults() : InputMap::load( mInputMapPath );
   if ( !mDisplayPath.empty() )
@@ -533,6 +538,24 @@ void Application::drawMenuBar()
     if ( ImGui::IsItemHovered() )
     {
       ImGui::SetTooltip( "Keeps the last 30 seconds, to be gone back through while the Rewind hotkey is held" );
+    }
+    if ( ImGui::BeginMenu( "Run-ahead" ) )
+    {
+      // Every game measured shows a control on its second frame or later, so
+      // one frame ahead takes nothing from any (scripts/measure-lag.py).
+      for ( int frames = 0; frames <= MAX_RUN_AHEAD; ++frames )
+      {
+        std::string const label = frames == 0 ? "Off" : fmt::format( "{} frame{}", frames, frames == 1 ? "" : "s" );
+        if ( ImGui::MenuItem( label.c_str(), nullptr, mRunAhead == frames ) && mRunAhead != frames )
+        {
+          mRunAhead = frames;
+          mEmulation->setRunAhead( mRunAhead );
+          keepSetting( "run_ahead", mRunAhead );
+        }
+      }
+      ImGui::Separator();
+      ImGui::TextDisabled( "1 suits every game; more cuts into what a game delays itself" );
+      ImGui::EndMenu();
     }
     if ( ImGui::BeginMenu( "Region" ) )
     {

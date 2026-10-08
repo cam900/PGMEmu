@@ -615,6 +615,11 @@ void Machine::setAudioListener( std::function<void( std::span<AudioFrame const> 
   mParts->audioListener = std::move( listener );
 }
 
+bool Machine::audioListened() const
+{
+  return static_cast<bool>( mParts->audioListener );
+}
+
 std::array<Ics2115Voice, 32> const& Machine::ics2115Voices() const
 {
   return mParts->ics2115.voices();
