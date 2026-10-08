@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AudioOutput.hpp"
 #include "ScreenTexture.hpp"
 
 #include "pgm/Emulator.hpp"
@@ -44,15 +45,17 @@ public:
 private:
   Application( SDL_Window* window, SDL_GPUDevice* device, Settings settings );
 
-  /// Runs the machine for one frame, if a game is loaded and it is not paused,
-  /// and takes its picture when a new one is complete.
-  void emulateFrame();
+  /// Runs the machine for as many frames as the time since the last call
+  /// holds, if a game is loaded and it is not paused; plays their sound and
+  /// takes the last picture completed.
+  void emulate();
 
   /// Lays out one frame of the user interface.
   void drawInterface();
   void drawMenuBar();
   void drawScreenWindow();
   void drawStatusWindow();
+  void drawSoundWindow();
 
   /// Uploads what changed, then renders the interface into the swapchain.
   void renderFrame();
@@ -64,10 +67,18 @@ private:
   bool mFrameChanged{ true };
   Emulator mEmulator;
   control::Dispatcher mDispatcher;
+  /// Null when no audio device could be opened: the emulation then runs
+  /// silent, paced by the clock alone.
+  std::unique_ptr<AudioOutput> mAudio;
+  std::uint64_t mLastTicksNs{};
+  double mFramesOwed{};
   std::string mImguiIniPath;
   bool mQuit{};
   bool mShowStatus{ true };
+  bool mShowSound{};
   bool mPaused{};
+  /// Whether the screen window had focus when the interface was last drawn.
+  bool mScreenFocused{};
   std::int64_t mPicturesShown{ -1 };
   std::string mLastError;
   bool mShowImguiDemo{};

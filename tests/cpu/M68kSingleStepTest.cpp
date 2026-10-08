@@ -1,15 +1,12 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "pgm/control/Dispatcher.hpp"
+#include "support/Files.hpp"
 
 #include "Moira.h"
 
-#include <miniz.h>
-
 #include <cstdint>
 #include <filesystem>
-#include <fstream>
-#include <iterator>
 #include <map>
 #include <optional>
 #include <sstream>
@@ -105,46 +102,6 @@ protected:
     write16( addr + 2, static_cast<moira::u16>( val ) );
   }
 };
-
-/// The content of a .json.gz file: gzip's header, then raw deflate.
-std::string gunzip( std::filesystem::path const& path )
-{
-  std::ifstream stream{ path, std::ios::binary };
-  std::vector<std::uint8_t> const packed{ std::istreambuf_iterator<char>{ stream }, std::istreambuf_iterator<char>{} };
-  REQUIRE( packed.size() > 18 );
-  REQUIRE( packed[0] == 0x1f );
-  REQUIRE( packed[1] == 0x8b );
-
-  // RFC 1952: a 10-byte header, then the optional fields its flags announce.
-  std::uint8_t const flags = packed[3];
-  std::size_t at = 10;
-  if ( ( flags & 0x04U ) != 0 )
-  {
-    at += 2 + static_cast<std::size_t>( packed[at] | ( packed[at + 1] << 8U ) );
-  }
-  for ( std::uint8_t const terminated : { std::uint8_t{ 0x08 }, std::uint8_t{ 0x10 } } )
-  {
-    if ( ( flags & terminated ) != 0 )
-    {
-      while ( packed[at] != 0 )
-      {
-        ++at;
-      }
-      ++at;
-    }
-  }
-  if ( ( flags & 0x02U ) != 0 )
-  {
-    at += 2;
-  }
-
-  std::size_t size = 0;
-  void* const text = tinfl_decompress_mem_to_heap( packed.data() + at, packed.size() - at, &size, 0 );
-  REQUIRE( text != nullptr );
-  std::string result{ static_cast<char const*>( text ), size };
-  mz_free( text );
-  return result;
-}
 
 void load( TestCpu& cpu, Json const& state )
 {
@@ -243,7 +200,7 @@ TEST_CASE( "Moira passes the SingleStepTests 68000 suite", "[cpu-suite]" )
   bool unexpected = false;
   for ( auto const& file : files )
   {
-    Json const tests = Json::parse( gunzip( file ) );
+    Json const tests = Json::parse( pgm::test::readGzip( file ) );
     std::size_t failedHere = 0;
     std::string firstFailure;
     for ( auto const& test : tests )

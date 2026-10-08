@@ -24,14 +24,16 @@ build/debug/src/pgm_cli/pgmemu-cli --server --bios ../ROMS/pgm.zip --rom-dir rom
 
 ```sh
 ./scripts/compare-with-rtl.py --frames 60 600 --pictures   # memory and pictures against the RTL simulation
+./scripts/compare-with-rtl.py --frames 800 --regions AUDIO_RAM --audio   # the Z80's RAM and the sound
 ./scripts/make-pgmtest.sh system_basics             # a PGMTest page as a BIOS program
 ./scripts/compare-with-rtl.py --program build/tools/pgmtest-system_basics/pgm/pgm_p02s.u20 --frames 30
 ./scripts/fetch-680x0-tests.sh                      # the SingleStepTests 68000 suite
-build/release/tests/pgm_tests "[cpu-suite]"         # Moira against it, about 15 s
+./scripts/fetch-z80-tests.sh                        # the SingleStepTests Z80 suite, 1.4 GB to fetch
+build/release/tests/pgm_tests "[cpu-suite]"         # Moira and z80.h against them, about 35 s
 ```
 
 Tests tagged `[roms]` read `roms/` and `../ROMS`, and `[cpu-suite]` reads
-`build/tools/680x0/`; both skip when their data is absent. The comparison with
+`build/tools/680x0/` and `build/tools/z80/`; both skip when their data is absent. The comparison with
 the RTL runs the simulator at about 1.4 frames per second. Do not use the PGMBuilder binary in
 `../PGMBuilder/out`: it may predate the format version this emulator reads.
 

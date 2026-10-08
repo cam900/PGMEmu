@@ -1,8 +1,9 @@
 #pragma once
 
-// Counts of the clock enables PGM.sv derives by jtframe_frac_cen, as closed
-// forms of the master tick count, so that a device can ask how many pulses of
-// its clock have passed without the machine stepping it through every tick.
+// Counts of the clock enables PGM.sv derives by jtframe_frac_cen (MiSTer core
+// commit e898860), as closed forms of the master tick count, so that a device
+// can ask how many pulses of its clock have passed without the machine stepping
+// it through every tick.
 //
 // jtframe_frac_cen adds n to an accumulator on every enabled input pulse and
 // fires when it reaches m, so after k pulses it has fired floor(k * n / m)
@@ -13,6 +14,9 @@
 
 namespace pgm::machine
 {
+
+/// ce_33m's rate in Hz.
+inline constexpr double CE_33M_HZ = 50'000'000.0 * 615 / 908;
 
 /// Pulses of ce_33m (the ICS2115's 33.865 MHz, 615/908 of the master clock)
 /// after `masterTicks` ticks.

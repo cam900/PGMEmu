@@ -32,7 +32,7 @@ build/release/src/pgm_cli/pgmemu-cli --server --bios ../ROMS/pgm.zip --rom-dir r
 
 The control protocol is [docs/spec/control-protocol.md](docs/spec/control-protocol.md).
 
-Games without protection, and orlegend, run with picture but no sound yet. The plan is in
+Games without protection, and orlegend, run with picture and sound. The plan is in
 [docs/plans/milestones.md](docs/plans/milestones.md), and the design in
 [docs/architecture.md](docs/architecture.md).
 

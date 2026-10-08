@@ -1,5 +1,6 @@
 add_executable( pgm_app
   src/Application.cpp
+  src/AudioOutput.cpp
   src/Keyboard.cpp
   src/Main.cpp
   src/ScreenTexture.cpp

@@ -34,4 +34,7 @@ void writeFile( std::filesystem::path const& path, std::vector<std::uint8_t> con
 void writeZip( std::filesystem::path const& path,
                std::vector<std::pair<std::string, std::vector<std::uint8_t>>> const& files );
 
+/// The content of a gzip file, such as the SingleStepTests suites' .json.gz.
+std::string readGzip( std::filesystem::path const& path );
+
 } // namespace pgm::test

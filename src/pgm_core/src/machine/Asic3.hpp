@@ -1,9 +1,9 @@
 #pragma once
 
-// The ASIC3 protection of Oriental Legend, ported from rtl/pgm_asic3.sv. The
-// 68000 reaches it at 0xC04000-0xC0400F on every board, as PGM.sv decodes it
-// whatever the cartridge: the first word selects a register, the others write
-// it or read it back.
+// The ASIC3 protection of Oriental Legend, ported from rtl/pgm_asic3.sv at
+// MiSTer core commit e898860. The 68000 reaches it at 0xC04000-0xC0400F on
+// every board, as PGM.sv decodes it whatever the cartridge: the first word
+// selects a register, the others write it or read it back.
 
 #include <array>
 #include <cstdint>

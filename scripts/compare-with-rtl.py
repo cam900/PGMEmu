@@ -22,17 +22,27 @@ wherever an interrupt arrived at a different instruction.
 how a PGMTest page (scripts/make-pgmtest.sh) is compared: the simulator's copy
 is overwritten with memory.write after loading, the emulator is given FILE's
 directory as its first BIOS source.
+
+--press NAME@FRAME presses a control on both, as input.press does (two frames
+held, two released), once FRAME frames have run; the names are the
+simulator's: up, down, left, right, button1, start. It may be repeated.
+
+--audio records the ICS2115's output on both from the reset to the last frame,
+keeps both as WAVs in build/compare/, and compares them sample by sample after
+aligning them: the two can disagree by a sample or so on where a frame ends.
 """
 
 import argparse
 import functools
 import json
+import math
 import pathlib
 import subprocess
 import sys
 import struct
 import tempfile
 import time
+import wave
 import zlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -160,6 +170,50 @@ def differing_ranges(left, right):
     return ranges
 
 
+def read_capture_stream(data):
+    """(left, right) frames of the simulator's audio capture: packets of a
+    44-byte header (sim_audio_capture.h) and a payload, of which those of type
+    1 hold stereo 16-bit frames."""
+    frames, at = [], 0
+    while at + 44 <= len(data):
+        magic, _, kind, size = struct.unpack_from("<IHHI", data, at)
+        assert magic == 0x414D4750, f"no packet at {at}"
+        if kind == 1:
+            frames += list(struct.iter_unpack("<hh", data[at + 44:at + 44 + size]))
+        at += 44 + size
+    return frames
+
+
+def read_wav(path):
+    with wave.open(str(path), "rb") as wav:
+        return list(struct.iter_unpack("<hh", wav.readframes(wav.getnframes())))
+
+
+def write_wav(path, frames, rate):
+    with wave.open(str(path), "wb") as wav:
+        wav.setnchannels(2)
+        wav.setsampwidth(2)
+        wav.setframerate(rate)
+        wav.writeframes(b"".join(struct.pack("<hh", *frame) for frame in frames))
+
+
+def compare_audio(mine, theirs, max_lag=64, window=8192):
+    """A summary of how two captures differ, at the lag that matches them best.
+    The lag is chosen on a window from the simulator's first sound on."""
+    start = next((i for i, frame in enumerate(theirs) if frame != (0, 0)), 0)
+
+    def matches(lag):
+        pairs = zip(mine[max(start + lag, 0):start + lag + window], theirs[start:start + window])
+        return sum(1 for a, b in pairs if a == b)
+    lag = max(range(-max_lag, max_lag + 1), key=lambda lag: (matches(lag), -abs(lag)))
+    pairs = list(zip(mine[max(lag, 0):], theirs[max(-lag, 0):]))
+    differing = [i for i, (a, b) in enumerate(pairs) if a != b]
+    worst = max((abs(a[c] - b[c]) for a, b in pairs for c in (0, 1)), default=0)
+    loud = max((abs(v) for frame in theirs for v in frame), default=0)
+    rms = math.sqrt(sum((a[c] - b[c]) ** 2 for a, b in pairs for c in (0, 1)) / max(1, 2 * len(pairs)))
+    return lag, len(pairs), differing, worst, loud, rms
+
+
 REGION_SIZES = {"WORK_RAM": 0x20000, "VIDEO_RAM": 0x8000, "PALETTE_RAM": 0x2000, "AUDIO_RAM": 0x10000}
 
 
@@ -178,6 +232,10 @@ def main():
                         help="also compare the pictures, and keep both as PNGs in build/compare/")
     parser.add_argument("--ignore", action="append", default=[], metavar="REGION:START-END",
                         help="a hex byte range of a region to leave out, end exclusive; may be repeated")
+    parser.add_argument("--press", action="append", default=[], metavar="NAME@FRAME",
+                        help="press a control at a frame; may be repeated")
+    parser.add_argument("--audio", action="store_true",
+                        help="also record the sound from the reset on, and compare it")
     args = parser.parse_args()
 
     ignored = {}
@@ -207,10 +265,25 @@ def main():
     for server in (emulator, simulator):
         server.call("sim.reset", cycles=100)
 
+    label = args.program.parent.parent.name if args.program else args.game
+    outputs = ROOT / "build" / "compare"
+    outputs.mkdir(parents=True, exist_ok=True)
+    if args.audio:
+        emulator.call("audio.capture_start", path=str(outputs / f"{label}-emulator.wav"))
+        simulator.call("audio_capture.start", filename=str(outputs / f"{label}-simulator.pga"))
+
+    presses = sorted((int(at), name) for name, at in (item.split("@") for item in args.press))
     identical = True
     done = 0
     for frame in args.frames:
         started = time.monotonic()
+        while presses and presses[0][0] <= frame:
+            at, name = presses.pop(0)
+            for server in (emulator, simulator):
+                if at > done:
+                    server.call("sim.run_frames", count=at - done)
+                server.call("input.press", name=name)
+            done = max(done, at) + 4
         runs = {server.name: server.call("sim.run_frames", count=frame - done) for server in (emulator, simulator)}
         done = frame
         print(f"frame {frame}: ran in {time.monotonic() - started:.0f} s; ticks emulator "
@@ -228,18 +301,28 @@ def main():
                       f"  simulator {theirs[start:min(end, start + 8)].hex()}")
 
         if args.pictures:
-            pictures = ROOT / "build" / "compare"
-            pictures.mkdir(parents=True, exist_ok=True)
             decoded = {}
             for server in (emulator, simulator):
-                label = args.program.parent.parent.name if args.program else args.game
-                path = pictures / f"{label}-{frame}-{server.name}.png"
+                path = outputs / f"{label}-{frame}-{server.name}.png"
                 server.call("video.screenshot", path=str(path))
                 decoded[server.name] = decode_png(path.read_bytes())
             differing, rows = compare_pictures(decoded["emulator"], decoded["simulator"])
             identical &= differing == 0
             where = f" in rows {rows[0]}-{rows[-1]}" if rows else ""
             print(f"  picture: {'identical' if not differing else f'{differing} pixels differ{where}'}")
+
+    if args.audio:
+        rate = emulator.call("audio.capture_stop")["sample_rate"]
+        simulator.call("audio_capture.stop")
+        mine = read_wav(outputs / f"{label}-emulator.wav")
+        theirs = read_capture_stream((outputs / f"{label}-simulator.pga").read_bytes())
+        write_wav(outputs / f"{label}-simulator.wav", theirs, rate)
+        lag, overlap, differing, worst, loud, rms = compare_audio(mine, theirs)
+        identical &= not differing
+        print(f"audio: emulator {len(mine)} frames, simulator {len(theirs)}, at {rate} Hz; aligned "
+              f"{lag:+d}: " + ("identical" if not differing else
+                              f"{len(differing)} of {overlap} differ from {differing[0]} on, by up to {worst} "
+                              f"(rms {rms:.1f}; the loudest sample is {loud})"))
 
     emulator.close()
     simulator.close()

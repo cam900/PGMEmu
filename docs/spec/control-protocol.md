@@ -62,11 +62,15 @@ A request that failed:
 | `invalid_signal` | A condition names a signal the emulator does not have (§6, `emu.run_until`). |
 | `invalid_region` | No memory region of that name holds anything now. |
 | `invalid_range` | The bytes asked for run past the end of the region. |
+| `capture_running` | `audio.capture_start` while a capture is running. |
+| `capture_not_running` | `audio.capture_stop` with no capture running. |
+| `capture_failed` | The capture's file could not be written. |
+| `invalid_input` | An `input.` method was given a name it does not know. |
 
-`unknown_method`, `unknown_game`, `load_failed`, `invalid_region`, `invalid_signal` and
-`bad_request` mean what the simulator means by them. `no_cartridge`, `not_loaded` and
-`invalid_range` are the emulator's own: the simulator does not check a range, and always has a
-machine.
+`unknown_method`, `unknown_game`, `load_failed`, `invalid_region`, `invalid_signal`,
+`invalid_input` and `bad_request` mean what the simulator means by them. `no_cartridge`, `not_loaded`,
+`invalid_range` and the `capture_` codes are the emulator's own: the simulator does not check a
+range, always has a machine, and captures sound by other methods (§6, `audio.capture_start`).
 
 ## 5. Names shared with the simulator
 
@@ -272,7 +276,7 @@ Errors: `not_loaded`, `invalid_signal`, `bad_request`.
 
 ### `cpu.get_state`
 
-Takes no parameters, or `cpu`, which may only be `m68k` until the Z80 and the ARM7 are emulated.
+Takes no parameters, or `cpu`: `m68k`, the default, or `z80`. The ARM7 is not emulated yet.
 
 ```json
 {"id":5,"ok":true,"result":{"pc":4166,"registers":[0,4294967295,"..."],"disasm":"move.l  D2, -(A7)",
@@ -289,7 +293,16 @@ Takes no parameters, or `cpu`, which may only be `m68k` until the Z80 and the AR
 | `sr`, `usp`, `ssp` | Status register and the two stack pointers. |
 | `stopped`, `halted` | Whether a STOP is waiting for an interrupt, and whether the 68000 has halted. |
 
-Errors: `not_loaded`.
+For the Z80 the answer is its registers, named as the SingleStepTests suite names them, and
+whether it is in a HALT. They are as of the last time the sound side was brought up to the
+68000's time, which is at the end of every run.
+
+```json
+{"id":5,"ok":true,"result":{"pc":1234,"sp":16384,"af":65535,"bc":0,"de":0,"hl":0,"ix":0,"iy":0,
+  "af_":65535,"bc_":0,"de_":0,"hl_":0,"wz":0,"i":0,"r":17,"im":1,"iff1":true,"iff2":true,"halted":false}}
+```
+
+Errors: `not_loaded`, `bad_request`.
 
 ### `cpu.disassemble`
 
@@ -338,3 +351,76 @@ before it stores the first visible one, so its row 0 is stale and the last visib
 missing.
 
 Errors: `not_loaded`, `screenshot_failed`.
+
+### `audio.capture_start`
+
+Starts recording the ICS2115's output, from the next run on, into a WAV file: 16-bit stereo, at
+the chip's own rate, one frame per sample period (32 of its clocks per active voice, about
+33 kHz with all 32). Nothing is resampled. A run adds what it produced when it ends.
+
+| Param | Meaning |
+|---|---|
+| `path` | Where to write the WAV. |
+
+```json
+{"id":8,"ok":true,"result":{"path":"bios.wav"}}
+```
+
+The simulator's `audio_capture.start` records the same frames, but as its packet stream rather
+than a WAV, so the two are not aliases; `scripts/compare-with-rtl.py --audio` reads both.
+
+Errors: `not_loaded`, `capture_running`, `capture_failed`, `bad_request`.
+
+### `audio.capture_stop`
+
+Ends the capture, completes the file and answers what it holds. `sample_rate` is the rate the
+frames came at, as their times give it.
+
+```json
+{"id":9,"ok":true,"result":{"path":"bios.wav","frames":497633,"sample_rate":33072}}
+```
+
+Errors: `capture_not_running`.
+
+### `audio.voices`
+
+The ICS2115's active voices and their registers, in the chip's own units: `osc_acc`,
+`osc_start` and `osc_end` are 20.9 fixed-point sample addresses in the bank `osc_saddr` selects,
+`vol_acc`, `vol_start` and `vol_end` are 26-bit envelope levels, of which the top 12 bits index
+the volume table.
+
+```json
+{"id":10,"ok":true,"result":{"active":32,"voices":[{"osc_acc":0,"osc_fc":0,"osc_start":0,"osc_end":0,"osc_saddr":0,"osc_conf":2,"osc_ctl":0,"vol_acc":0,"vol_start":0,"vol_end":0,"vol_incr":0,"vol_pan":127,"vol_ctrl":1,"vol_mode":0}]}}
+```
+
+Errors: `not_loaded`.
+
+### `input.set`, `input.clear` (as the simulator has them)
+
+Holds a control of player 1 down, or lets it go, until the next change.
+
+| Param | Meaning |
+|---|---|
+| `name` | `up`, `down`, `left`, `right`, `button1` (or `btn1`, `a`) and `start`, the simulator's names; and the emulator's own `button2`, `button3`, `button4` and `coin`. |
+
+```json
+{"id":11,"ok":true,"result":{}}
+```
+
+Errors: `not_loaded`, `invalid_input`, `bad_request`.
+
+### `input.press` (as the simulator has it)
+
+Holds a control for two frames, then lets it go for two: four frames run, and the answer is
+`emu.run_frames`'s for all four. Takes `name`, as `input.set` does.
+
+Errors: `not_loaded`, `invalid_input`, `bad_request`.
+
+### `input.get_state` (as the simulator has it)
+
+The controls held, as the simulator encodes them: its `joystick_p1` bits (right 0x01, left 0x02,
+down 0x04, up 0x08, buttons 1 to 4 from 0x10), start at 0x10000, and the coin at 0x100000.
+
+```json
+{"id":12,"ok":true,"result":{"buttons":65552}}
+```

@@ -53,6 +53,30 @@ Json stateOf( machine::Machine const& machine )
                { "halted", state.halted } };
 }
 
+Json z80StateOf( machine::Machine const& machine )
+{
+  machine::Z80Registers const r = machine.z80Registers();
+  return Json{ { "pc", r.pc },
+               { "sp", r.sp },
+               { "af", r.af },
+               { "bc", r.bc },
+               { "de", r.de },
+               { "hl", r.hl },
+               { "ix", r.ix },
+               { "iy", r.iy },
+               { "af_", r.af2 },
+               { "bc_", r.bc2 },
+               { "de_", r.de2 },
+               { "hl_", r.hl2 },
+               { "wz", r.wz },
+               { "i", r.i },
+               { "r", r.r },
+               { "im", r.im },
+               { "iff1", r.iff1 },
+               { "iff2", r.iff2 },
+               { "halted", machine.z80Halted() } };
+}
+
 } // namespace
 
 void addCpuMethods( Dispatcher& dispatcher, Emulator& emulator )
@@ -65,9 +89,13 @@ void addCpuMethods( Dispatcher& dispatcher, Emulator& emulator )
                     {
                       return std::unexpected( machine.error() );
                     }
+                    if ( params.contains( "cpu" ) && params.at( "cpu" ) == "z80" )
+                    {
+                      return z80StateOf( **machine );
+                    }
                     if ( params.contains( "cpu" ) && params.at( "cpu" ) != "m68k" )
                     {
-                      return std::unexpected( badRequest( "Only the m68k is emulated yet" ) );
+                      return std::unexpected( badRequest( "The cpu is m68k or z80; the ARM7 is not emulated yet" ) );
                     }
                     return stateOf( **machine );
                   } );

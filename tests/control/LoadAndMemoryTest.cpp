@@ -1,7 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include "support/Files.hpp"
-#include "support/PgmFile.hpp"
+#include "support/Fixture.hpp"
 
 #include "pgm/Emulator.hpp"
 #include "pgm/control/Dispatcher.hpp"
@@ -12,47 +11,10 @@
 
 using pgm::control::Dispatcher;
 using pgm::control::Json;
-using pgm::test::TemporaryDirectory;
+using pgm::test::Fixture;
 
 namespace
 {
-
-/// A BIOS directory and a ROM directory holding `testcart.pgm`, as an emulator
-/// started with `--bios` and `--rom-dir` would be given them.
-class Fixture
-{
-public:
-  Fixture()
-  {
-    std::filesystem::create_directory( biosDirectory() );
-    std::filesystem::create_directory( romDirectory() );
-    pgm::test::writeFile( biosDirectory() / "pgm_p02s.u20", std::vector<std::uint8_t>( 0x20000, 0xb0 ) );
-    pgm::test::writeFile( biosDirectory() / "pgm_t01s.rom", std::vector<std::uint8_t>( 0x200000, 0xb1 ) );
-    pgm::test::writeFile( biosDirectory() / "pgm_m01s.rom", std::vector<std::uint8_t>( 0x200000, 0xb2 ) );
-
-    pgm::test::PgmFile cart;
-    cart.roms = { pgm::test::PgmRom{ .type = 1, .mapping = 0x100000, .data = { 0x4e, 0x71, 0x4e, 0x75 } } };
-    pgm::test::writeFile( romDirectory() / "testcart.pgm", pgm::test::write( cart ) );
-  }
-
-  [[nodiscard]] std::filesystem::path biosDirectory() const
-  {
-    return mScratch.path() / "bios";
-  }
-
-  [[nodiscard]] std::filesystem::path romDirectory() const
-  {
-    return mScratch.path() / "roms";
-  }
-
-  [[nodiscard]] pgm::Settings settings() const
-  {
-    return pgm::Settings{ .biosSources = { biosDirectory() }, .romDirectory = romDirectory() };
-  }
-
-private:
-  TemporaryDirectory mScratch;
-};
 
 Json call( Dispatcher const& dispatcher, std::string const& method, Json params = Json::object() )
 {

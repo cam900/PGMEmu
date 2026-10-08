@@ -4,10 +4,12 @@ add_library( pgm_core
   src/Version.cpp
   src/cart/Bios.cpp
   src/cart/PgmImage.cpp
+  src/control/AudioMethods.cpp
   src/control/CpuMethods.cpp
   src/control/Describe.cpp
   src/control/Dispatcher.cpp
   src/control/EmuMethods.cpp
+  src/control/InputMethods.cpp
   src/control/MemoryMethods.cpp
   src/control/Params.cpp
   src/control/RunMethods.cpp
@@ -17,16 +19,18 @@ add_library( pgm_core
   src/machine/Asic3.cpp
   src/machine/Bus68k.cpp
   src/machine/Igs023.cpp
+  src/machine/Ics2115.cpp
   src/machine/Igs026.cpp
   src/machine/M68k.cpp
   src/machine/Machine.cpp
   src/machine/Sdram.cpp
   src/machine/SpriteEngine.cpp
-  src/machine/V3021.cpp )
+  src/machine/V3021.cpp
+  src/machine/Z80.cpp )
 
 add_library( pgm::core ALIAS pgm_core )
 
-target_include_directories( pgm_core PUBLIC include )
+target_include_directories( pgm_core PUBLIC include PRIVATE src )
 
 target_compile_definitions( pgm_core PRIVATE PGM_VERSION="${PGM_VERSION_STRING}" )
 

@@ -11,6 +11,7 @@
 #include <imgui_impl_sdlgpu3.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <utility>
 
@@ -30,6 +31,15 @@ constexpr int INITIAL_HEIGHT = 900;
 
 constexpr char const* SCREEN_WINDOW = "Screen";
 constexpr char const* STATUS_WINDOW = "Status";
+constexpr char const* SOUND_WINDOW = "Sound";
+
+/// The board's frame rate, some 59.19 Hz, per nanosecond of the host's clock.
+constexpr double FRAMES_PER_NANOSECOND =
+    static_cast<double>( machine::UNITS_PER_SECOND ) / static_cast<double>( machine::UNITS_PER_FRAME ) / 1e9;
+
+/// The most frames run to catch up: after a stall, such as a dragged window,
+/// the rest of the backlog is dropped rather than run at full speed.
+constexpr double MAX_FRAMES_OWED = 4.0;
 
 std::string sdlError( std::string const& what )
 {
@@ -85,7 +95,8 @@ std::expected<std::unique_ptr<Application>, std::string> Application::create( Se
 
 Application::Application( SDL_Window* window, SDL_GPUDevice* device, Settings settings )
     : mWindow{ window }, mDevice{ device }, mScreen{ std::make_unique<ScreenTexture>( device ) },
-      mFrame{ makeTestPattern() }, mEmulator{ std::move( settings ) }, mDispatcher{ mEmulator }
+      mFrame{ makeTestPattern() }, mEmulator{ std::move( settings ) }, mDispatcher{ mEmulator },
+      mAudio{ AudioOutput::open() }
 {
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
@@ -125,6 +136,7 @@ Application::~Application()
   ImGui_ImplSDLGPU3_Shutdown();
   ImGui::DestroyContext();
   mScreen.reset();
+  mAudio.reset();
   SDL_ReleaseWindowFromGPUDevice( mDevice, mWindow );
   SDL_DestroyGPUDevice( mDevice );
   SDL_DestroyWindow( mWindow );
@@ -154,7 +166,7 @@ void Application::run()
       continue;
     }
 
-    emulateFrame();
+    emulate();
 
     ImGui_ImplSDLGPU3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
@@ -174,21 +186,42 @@ void Application::loadGame( std::string const& nameOrPath )
   mPicturesShown = -1;
 }
 
-void Application::emulateFrame()
+void Application::emulate()
 {
   // The frame loop drives the machine directly: it is the frontend's own clock,
   // not a capability, and going through JSON sixty times a second buys nothing.
+  std::uint64_t const now = SDL_GetTicksNS();
+  std::uint64_t const elapsed = mLastTicksNs == 0 ? 0 : now - mLastTicksNs;
+  mLastTicksNs = now;
   machine::Machine* const machine = mEmulator.machine();
   if ( machine == nullptr || mPaused )
   {
+    mFramesOwed = 0.0;
     return;
   }
-  // ImGui keeps the keyboard while one of its widgets has focus.
-  if ( !ImGui::GetIO().WantCaptureKeyboard )
+
+  // The host's clock paces the emulation, so that it runs at the board's
+  // speed whatever the display's refresh rate. The audio device's clock
+  // drifts from it; AudioOutput absorbs that.
+  mFramesOwed = std::min( mFramesOwed + ( static_cast<double>( elapsed ) * FRAMES_PER_NANOSECOND ), MAX_FRAMES_OWED );
+  while ( mFramesOwed >= 1.0 )
   {
-    machine->setInputs( inputsFromKeyboard( SDL_GetKeyboardState( nullptr ) ) );
+    mFramesOwed -= 1.0;
+    // The game has the keyboard while its screen has focus, or nothing of
+    // the interface does. ImGui's keyboard navigation asks for the keyboard
+    // whenever any of its windows has focus, the screen's included, so its
+    // request alone cannot decide. A text field being edited keeps it.
+    ImGuiIO const& io = ImGui::GetIO();
+    bool const toGame = !io.WantTextInput && ( mScreenFocused || !io.WantCaptureKeyboard );
+    machine->setInputs( toGame ? inputsFromKeyboard( SDL_GetKeyboardState( nullptr ) )
+                               : std::array<std::uint16_t, 4>{} );
+    machine->runFrames( 1 );
+    if ( mAudio )
+    {
+      mAudio->push( machine->audio(), machine->audioRate() );
+    }
   }
-  machine->runFrames( 1 );
+
   if ( machine->picturesDrawn() != mPicturesShown )
   {
     mPicturesShown = machine->picturesDrawn();
@@ -208,6 +241,7 @@ void Application::drawInterface()
   ImGui::SetNextWindowDockID( dockspace, ImGuiCond_FirstUseEver );
   drawScreenWindow();
   drawStatusWindow();
+  drawSoundWindow();
 
   if ( mShowImguiDemo )
   {
@@ -231,7 +265,10 @@ void Application::drawMenuBar()
   }
   if ( ImGui::BeginMenu( "Emulation" ) )
   {
-    ImGui::MenuItem( "Pause", nullptr, &mPaused );
+    if ( ImGui::MenuItem( "Pause", nullptr, &mPaused ) && mPaused && mAudio )
+    {
+      mAudio->clear();
+    }
     if ( ImGui::MenuItem( "Reset" ) )
     {
       static_cast<void>( mDispatcher.handle(
@@ -242,6 +279,7 @@ void Application::drawMenuBar()
   if ( ImGui::BeginMenu( "View" ) )
   {
     ImGui::MenuItem( STATUS_WINDOW, nullptr, &mShowStatus );
+    ImGui::MenuItem( SOUND_WINDOW, nullptr, &mShowSound );
     ImGui::Separator();
     ImGui::MenuItem( "ImGui demo", nullptr, &mShowImguiDemo );
     ImGui::EndMenu();
@@ -254,6 +292,7 @@ void Application::drawScreenWindow()
   ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2{ 0.0F, 0.0F } );
   bool const open = ImGui::Begin( SCREEN_WINDOW, nullptr, ImGuiWindowFlags_NoScrollbar );
   ImGui::PopStyleVar();
+  mScreenFocused = ImGui::IsWindowFocused( ImGuiFocusedFlags_RootAndChildWindows );
   if ( open )
   {
     // The largest whole multiple of the screen that fits, centred: a whole
@@ -311,6 +350,75 @@ void Application::drawStatusWindow()
       ImGui::TextWrapped( "Load failed: %s", mLastError.c_str() );
     }
     ImGui::Text( "Interface: %.1f fps", static_cast<double>( ImGui::GetIO().Framerate ) );
+  }
+  ImGui::End();
+}
+
+void Application::drawSoundWindow()
+{
+  if ( !mShowSound )
+  {
+    return;
+  }
+  if ( ImGui::Begin( SOUND_WINDOW, &mShowSound ) )
+  {
+    ImGui::Text( "Output: %s", mAudio ? "default device" : "none" );
+    if ( mAudio )
+    {
+      ImGui::SameLine();
+      ImGui::Text( "(%.0f ms queued)", mAudio->queuedSeconds() * 1000.0 );
+    }
+
+    // The voices, as `audio.voices` reports them.
+    auto const response = mDispatcher.handle( control::Json{ { "id", 1 }, { "method", "audio.voices" } } );
+    if ( response.at( "ok" ) != true )
+    {
+      ImGui::TextUnformatted( "No game loaded" );
+      ImGui::End();
+      return;
+    }
+    auto const& voices = response.at( "result" ).at( "voices" );
+    ImGuiTableFlags const flags = ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_ScrollY |
+                                  ImGuiTableFlags_SizingFixedFit;
+    if ( ImGui::BeginTable( "voices", 9, flags ) )
+    {
+      ImGui::TableSetupScrollFreeze( 0, 1 );
+      for ( char const* heading : { "#", "conf", "ctl", "fc", "address", "end", "level", "pan", "vctrl" } )
+      {
+        ImGui::TableSetupColumn( heading );
+      }
+      ImGui::TableHeadersRow();
+      int index = 0;
+      for ( auto const& voice : voices )
+      {
+        auto const field = [&voice]( char const* name ) { return voice.at( name ).get<unsigned>(); };
+        // A voice is heard while its oscillator runs and its envelope is above
+        // the bottom of the volume table.
+        bool const sounding = ( field( "osc_ctl" ) & 2U ) == 0 && ( field( "vol_acc" ) >> 14U ) > 0x100;
+        ImGui::TableNextRow();
+        ImGui::BeginDisabled( !sounding );
+        ImGui::TableNextColumn();
+        ImGui::Text( "%2d", index++ );
+        ImGui::TableNextColumn();
+        ImGui::Text( "%02x", field( "osc_conf" ) );
+        ImGui::TableNextColumn();
+        ImGui::Text( "%02x", field( "osc_ctl" ) );
+        ImGui::TableNextColumn();
+        ImGui::Text( "%04x", field( "osc_fc" ) );
+        ImGui::TableNextColumn();
+        ImGui::Text( "%x:%05x", field( "osc_saddr" ) & 0xfU, field( "osc_acc" ) >> 9U );
+        ImGui::TableNextColumn();
+        ImGui::Text( "%05x", field( "osc_end" ) >> 9U );
+        ImGui::TableNextColumn();
+        ImGui::Text( "%03x", field( "vol_acc" ) >> 14U );
+        ImGui::TableNextColumn();
+        ImGui::Text( "%02x", field( "vol_pan" ) );
+        ImGui::TableNextColumn();
+        ImGui::Text( "%02x", field( "vol_ctrl" ) );
+        ImGui::EndDisabled();
+      }
+      ImGui::EndTable();
+    }
   }
   ImGui::End();
 }

@@ -5,6 +5,7 @@
 #include <atomic>
 #include <chrono>
 #include <fstream>
+#include <iterator>
 #include <stdexcept>
 #include <string>
 #include <system_error>
@@ -62,6 +63,50 @@ void writeZip( std::filesystem::path const& path,
   {
     throw std::runtime_error( "cannot finish " + path.string() );
   }
+}
+
+std::string readGzip( std::filesystem::path const& path )
+{
+  std::ifstream stream{ path, std::ios::binary };
+  std::vector<std::uint8_t> const packed{ std::istreambuf_iterator<char>{ stream }, std::istreambuf_iterator<char>{} };
+  if ( packed.size() <= 18 || packed[0] != 0x1f || packed[1] != 0x8b )
+  {
+    throw std::runtime_error{ "not a gzip file: " + path.string() };
+  }
+
+  // RFC 1952: a 10-byte header, then the optional fields its flags announce,
+  // then raw deflate.
+  std::uint8_t const flags = packed[3];
+  std::size_t at = 10;
+  if ( ( flags & 0x04U ) != 0 )
+  {
+    at += 2 + static_cast<std::size_t>( packed[at] | ( packed[at + 1] << 8U ) );
+  }
+  for ( std::uint8_t const terminated : { std::uint8_t{ 0x08 }, std::uint8_t{ 0x10 } } )
+  {
+    if ( ( flags & terminated ) != 0 )
+    {
+      while ( packed[at] != 0 )
+      {
+        ++at;
+      }
+      ++at;
+    }
+  }
+  if ( ( flags & 0x02U ) != 0 )
+  {
+    at += 2;
+  }
+
+  std::size_t size = 0;
+  void* const text = tinfl_decompress_mem_to_heap( packed.data() + at, packed.size() - at, &size, 0 );
+  if ( text == nullptr )
+  {
+    throw std::runtime_error{ "cannot inflate " + path.string() };
+  }
+  std::string result{ static_cast<char const*>( text ), size };
+  mz_free( text );
+  return result;
 }
 
 } // namespace pgm::test

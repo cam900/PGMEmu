@@ -20,6 +20,8 @@ void addMemoryMethods( Dispatcher& dispatcher, Emulator& emulator );
 void addRunMethods( Dispatcher& dispatcher, Emulator& emulator );
 void addCpuMethods( Dispatcher& dispatcher, Emulator& emulator );
 void addVideoMethods( Dispatcher& dispatcher, Emulator& emulator );
+void addAudioMethods( Dispatcher& dispatcher, Emulator& emulator );
+void addInputMethods( Dispatcher& dispatcher, Emulator& emulator );
 
 Error badRequest( std::string message );
 

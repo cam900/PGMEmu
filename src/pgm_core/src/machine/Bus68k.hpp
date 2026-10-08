@@ -1,8 +1,8 @@
 #pragma once
 
 // The 68000's address space: the chip selects of rtl/address_translator.sv and
-// the order PGM.sv's data multiplexer gives them. Protection devices are added
-// to it per board in M7.
+// the order PGM.sv's data multiplexer gives them, at MiSTer core commit
+// e898860. Protection devices are added to it per board in M7.
 
 #include "Asic3.hpp"
 #include "Igs023.hpp"

@@ -1,12 +1,17 @@
 #include "pgm/machine/Machine.hpp"
 
 #include "Bus68k.hpp"
+#include "ClockEnables.hpp"
+#include "Ics2115.hpp"
 #include "Igs023.hpp"
 #include "Igs026.hpp"
 #include "M68k.hpp"
+#include "Z80.hpp"
 
 #include <algorithm>
 #include <optional>
+#include <utility>
+#include <vector>
 
 namespace pgm::machine
 {
@@ -103,7 +108,10 @@ struct Machine::Parts
         video{ sdram,
                TileMapping{ .cartridge = cartridge != nullptr, .tileBase = mappingOf( cartridge, cart::RomType::TLE ) },
                workRam },
-        asic3{ asic3Region( cartridge ) },
+        ics2115{ sdram,
+                 SampleMapping{ .cartridge = cartridge != nullptr,
+                                .musicBase = mappingOf( cartridge, cart::RomType::AUD ) } },
+        io{ z80, ics2115 }, asic3{ asic3Region( cartridge ) },
         bus{ RomSpace{ .sdram = &sdram,
                        .cartridge = cartridge != nullptr,
                        .cartBase = mappingOf( cartridge, cart::RomType::PRG ) },
@@ -125,10 +133,15 @@ struct Machine::Parts
   /// stopping at again.
   std::optional<std::uint32_t> resumeFrom;
   std::set<std::uint32_t> breakpoints;
+  /// The sound produced by the last run, and who hears it as the run ends.
+  std::vector<AudioFrame> audio;
+  std::function<void( std::span<AudioFrame const> )> audioListener;
   Sdram sdram;
   std::array<std::uint8_t, 0x20000> workRam{};
   InputPorts inputs;
   Igs023 video;
+  Z80 z80;
+  Ics2115 ics2115;
   Igs026 io;
   Asic3 asic3;
   Bus68k bus;
@@ -137,11 +150,20 @@ struct Machine::Parts
 
 RunResult Machine::Parts::run( Time until, std::function<bool()> const* condition )
 {
+  audio.clear();
   Time const start = now;
   std::int64_t const startFrame =
       start < FRAME_BOUNDARY_OFFSET ? 0 : ( ( start - FRAME_BOUNDARY_OFFSET ) / UNITS_PER_FRAME ) + 1;
   auto const result = [&]( StopReason reason )
   {
+    // The sound side has only been caught up as far as the 68000 last
+    // reached it.
+    io.advanceTo( now );
+    ics2115.takeFrames( audio );
+    if ( audioListener )
+    {
+      audioListener( audio );
+    }
     std::int64_t const endFrame =
         now < FRAME_BOUNDARY_OFFSET ? 0 : ( ( now - FRAME_BOUNDARY_OFFSET ) / UNITS_PER_FRAME ) + 1;
     return RunResult{ .reason = reason,
@@ -215,7 +237,8 @@ Machine::~Machine() = default;
 void Machine::reset( std::int64_t masterTicks )
 {
   Parts& parts = *mParts;
-  parts.io.reset();
+  parts.audio.clear();
+  parts.io.reset( parts.now );
   parts.video.reset();
   parts.asic3.reset();
   parts.now += masterTicks * UNITS_PER_MASTER_TICK;
@@ -347,6 +370,41 @@ std::span<std::uint8_t const> Machine::picture() const
 std::int64_t Machine::picturesDrawn() const
 {
   return mParts->video.framesCompleted();
+}
+
+Z80Registers Machine::z80Registers() const
+{
+  return mParts->z80.registers();
+}
+
+bool Machine::z80Halted() const
+{
+  return mParts->z80.halted();
+}
+
+std::span<AudioFrame const> Machine::audio() const
+{
+  return mParts->audio;
+}
+
+double Machine::audioRate() const
+{
+  return CE_33M_HZ / static_cast<double>( mParts->ics2115.samplePeriod() );
+}
+
+void Machine::setAudioListener( std::function<void( std::span<AudioFrame const> )> listener )
+{
+  mParts->audioListener = std::move( listener );
+}
+
+std::array<Ics2115Voice, 32> const& Machine::ics2115Voices() const
+{
+  return mParts->ics2115.voices();
+}
+
+std::size_t Machine::ics2115ActiveVoices() const
+{
+  return mParts->ics2115.activeVoices();
 }
 
 std::span<std::uint8_t const> Machine::z80Ram() const

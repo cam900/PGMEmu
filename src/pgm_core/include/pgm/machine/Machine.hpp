@@ -2,6 +2,7 @@
 
 #include "pgm/cart/Bios.hpp"
 #include "pgm/cart/PgmImage.hpp"
+#include "pgm/machine/Sound.hpp"
 #include "pgm/machine/Time.hpp"
 
 #include <array>
@@ -94,6 +95,10 @@ public:
   [[nodiscard]] bool hblank() const;
 
   [[nodiscard]] M68kState m68kState() const;
+  /// The Z80's registers, as of the last time the 68000 or the end of a run
+  /// caught the sound side up.
+  [[nodiscard]] Z80Registers z80Registers() const;
+  [[nodiscard]] bool z80Halted() const;
   /// The instruction at `address`, and its length in bytes.
   [[nodiscard]] std::string disassemble( std::uint32_t address, int& length ) const;
   /// The word at `address` as the 68000 would read it from ROM or work RAM, or
@@ -119,6 +124,16 @@ public:
   [[nodiscard]] std::span<std::uint8_t const> picture() const;
   /// Pictures completed since power-up.
   [[nodiscard]] std::int64_t picturesDrawn() const;
+
+  /// The ICS2115's output during the last run, at its own rate: a frame per
+  /// 32 of its clocks per active voice, about 33 kHz with all 32.
+  [[nodiscard]] std::span<AudioFrame const> audio() const;
+  /// The rate audio() comes at now, in frames per second.
+  [[nodiscard]] double audioRate() const;
+  /// Called with audio() as every run ends; an empty function stops the calls.
+  void setAudioListener( std::function<void( std::span<AudioFrame const> )> listener );
+  [[nodiscard]] std::array<Ics2115Voice, 32> const& ics2115Voices() const;
+  [[nodiscard]] std::size_t ics2115ActiveVoices() const;
 
 private:
   struct Parts;

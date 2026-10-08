@@ -81,6 +81,7 @@ Each hardware module ports one RTL module, and the module header names its sourc
 | `Igs023` | `igs023.sv`, `igs023_bg.sv`, `igs023_fg.sv`, `igs023_sprite.sv`, `igs023_buffer.sv` |
 | `Ics2115` | `ics2115/*.sv` |
 | `Igs026` | `igs026_x.sv` |
+| `Z80` | `tv80s`, as `PGM.sv` wires it, on `z80.h` ([0003](decisions/0003-cpu-cores.md)) |
 | `V3021` | `v3021.sv` |
 | `Asic3` | `pgm_asic3.sv` |
 | `Igs025` | `igs025.sv` |
@@ -98,9 +99,16 @@ How some of these modules work, and why:
   starts fetching it; the sprite layer is drawn from the list the DMA copies at line 221, and
   shown from the next vertical blank. The sprite engine (`SpriteEngine`) ports the RTL's prescan
   and row drawing state by state, its zoom patterns and its quirks included.
+- **`Igs026` keeps the sound side's time.** The Z80 runs a T-state per ce_8m pulse, and the
+  ICS2115 is brought to the Z80's time whenever the Z80 reaches it and whenever it next acts
+  on its own (a sample tick, a timer), which is when its IRQ, the Z80's /INT, can change.
+  Between those the Z80 runs without looking at it.
 - **`Ics2115`: audio is produced at the chip's own rate.** That is one stereo sample every
   `(oscillators + 1) × 32` chip clocks. Resampling to the host rate is the frontend's job, so
-  the suite can compare the native stream with WAVs captured from the RTL simulation.
+  the suite can compare the native stream with WAVs captured from the RTL simulation. A sample
+  period's voices are processed one after another at the times the RTL's sequencer reaches
+  them, so that a write from the Z80 reaches the same voices in the same period as there
+  ([differences](hardware/differences.md)).
 - **`Igs027a` comes in board variants.** Types 1, 2 and 3 differ in their memory map and latch.
   The variant and the ARM clock follow from the `.pgm` header's hardware class and the RTL's
   per-game table.
@@ -156,9 +164,11 @@ gamepad handling and debugger layout; none of its code is used
   a queue, the same path the network transports use.
 - Headless mode has one thread.
 
-**Pacing:** the audio stream is the clock, with dynamic rate control between the core's native
-rate and the host's. Vsync is the fallback when audio is off. Fast-forward, pause, frame step
-and rewind sit on top of it.
+**Pacing:** the host's monotonic clock paces the emulation at the board's 59.19 frames a
+second, whatever the display's refresh rate. The sound goes to an SDL audio stream at the chip's
+own rate; SDL resamples it to the device's, and dynamic rate control pulls that resampling by up
+to half a percent to keep the queue near its target as the two clocks drift. Without an audio
+device the clock paces alone. Fast-forward, pause, frame step and rewind sit on top of it.
 
 **Input:**
 

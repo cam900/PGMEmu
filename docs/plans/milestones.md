@@ -17,22 +17,6 @@ A session takes work by saying *build M<n> of docs/plans/milestones.md*. Every t
 Every milestone ends with an **exit** condition that can be checked without a person looking at
 a screen. That is why the control API and the headless runner come before most of the hardware.
 
-## M4: Sound
-
-*Delivers:*
-
-- The `z80.h` adapter with the Z80 suite passing; Z80 RAM, I/O map, latches, NMI, bus request,
-  reset.
-- `Ics2115`: voices, envelopes, timers, IRQ.
-- Native-rate output, the resampler, the SDL audio stream with dynamic rate control.
-- `audio.capture`; the voice window.
-
-*Exit:*
-
-- PGMTest `z80_ctrl`, `z80_sound_test`, `z80_ics_test` and `ics2115_vol_pan` pass.
-- The BIOS jingle and orlegend's attract audio match WAVs captured from the RTL simulation,
-  within the tolerance of the scripts in `../Arcade-IGSPGM_MiSTer/audio_tests`.
-
 ## M5: The agent's toolset
 
 *Delivers:*

@@ -13,6 +13,8 @@ makes it true and comes out in the commit that makes it false.
 | VRAM size | 32 KB, but the background map is folded into its first 4 KB and 0x6000-0x6FFF onto the text map (`vram_phys`). PGMTest's `vram_write_test` fails on it, identically on the RTL and the emulator. | 32 KB, every byte its own. | `Igs023` |
 | Text layer's fetch | Stops after 464 cycles of the 33 MHz clock whether or not all 57 tiles arrived; with the simulator's SDRAM latency the last tiles of a line can be left from an earlier fetch. The emulator always draws them fresh, so PGMTest's `fg_test` differs from the RTL in the rightmost column only. Probable cause, from reading `igs023_fg.sv`. | Fetches every tile. | not reproduced |
 | RTC | Starts from zero rather than the date. Its "second" passes every 65536 pulses of a clock derived from the Z80's, about 1.77 s. | A V3021 with its own 32.768 kHz crystal. | `V3021` |
+| Z80 at power-up | Runs from address 0 with every register zero: its reset is a latch bit that starts clear, so it is never reset until the BIOS holds it, and the simulator starts every flip-flop at zero. A reset then sets only what tv80's flip-flops hold (PC, AF, AF', SP, I, R, the interrupt state), and leaves BC to IY as they were. | Undefined until the BIOS resets it. | `Z80` |
+| ICS2115's voices | `ics2115_osc.sv`'s model, quirks included: the oscillator's direction is read from bit 6 of its control register while a bidirectional loop flips bit 6 of its configuration; a volume loop turns back once and a plain one going up holds; 16-bit samples are the addressed byte twice. The RTL's comments mark much of it as measured on a board. | Where it differs, not known here. | `Ics2115` |
 
 ## The emulator, where it is not yet the RTL
 
@@ -21,7 +23,10 @@ makes it true and comes out in the commit that makes it false.
 | VRAM contention | Wait states from `igs023.sv`'s byte-wide state machine, and a wait to the end of the text layer's fetch window. The background's reads of a few dots per tile are not counted. | The same, and the background's reads. | open ([question](../open-questions.md)) |
 | When the picture is read | A line at its start, sprites a frame at a time ([0011](../decisions/0011-video-is-drawn-by-line-and-by-frame.md)). | Dot by dot, sprites as line buffers free. | not planned |
 | ASIC3's region | The cartridge's default region. | Always 0, the world. The two agree for every image built from the workspace's sets. | — |
-| Z80 | Absent. A bus request is granted at once. | A running Z80 grants it a few cycles later, and its sound driver writes the latches the BIOS reads. | M4 |
+| ICS2115's sequencing | The voices of a sample period one after another, each when the RTL's sequencer would load it if both its sample reads hit the cache: 24 master ticks apiece. A register write takes effect at once. | The same order, but a voice whose reads miss the cache waits for SDRAM, whose latency the simulator varies, and a write waits a few cycles for the voice it touches to leave the pipeline. A write that lands close to a voice's turn can reach it one sample earlier or later than here. | not planned |
+| ICS2115's status bit 6 | Never set. | Set while a voice write is queued, a few cycles after each. | not planned |
+| Z80 bus request | Granted before the Z80's next opcode fetch, which goes on when the bus comes back. | tv80s grants at the end of the current machine cycle, and starts the next one two of its ticks after the bus comes back. Modelled that way, PGMTest's ICS pages start the ICS2115 in step with the RTL, but orlegend's attract sound drifts from it after 18 s; as it is, orlegend's sound and the BIOS's are the RTL's sample for sample, and `z80_ics_test` and `ics2115_vol_pan` start the chip 21 and 29 samples early ([question](../open-questions.md)). | open |
+| Z80 interrupt acknowledge | 0xFF from the ICS2115's ports, without a read's side effects. The BIOS's sound driver, which orlegend uses too, runs in interrupt mode 1 and ignores the byte. | Whatever the I/O decode puts on the bus. | — |
 | ROM read timing | No delay, as on the board. | A 256-line cache in front of SDRAM freezes the 68000 on a miss and catches up after; latency varies with video and audio contention, and the simulator's SDRAM model adds random delays. | not planned ([0010](../decisions/0010-rom-timing.md)) |
 
 ## What comparing with the RTL shows today
@@ -29,15 +34,24 @@ makes it true and comes out in the commit that makes it false.
 `scripts/compare-with-rtl.py` runs the same requests on both.
 
 - **The BIOS alone:** work RAM, VRAM, palette RAM and the picture are identical at frames 60
-  and 600.
+  and 600. Its jingle, recorded from the reset to frame 800, is identical sample for sample,
+  441,753 frames of it; the Z80's RAM differs in dead stack only.
 - **orlegend:** VRAM, palette RAM and the picture are identical at frames 300, 900, 1200 and
   1500; work RAM is identical at 300 and 900, and later differs in dead stack only.
+- **orlegend's sound:** from the reset to frame 1200, 20 seconds of attract, identical sample
+  for sample.
+- **PGMTest's sound pages:** `z80_ctrl`, `z80_sound_test`, `z80_ics_test` and
+  `ics2115_vol_pan` match the RTL at frame 360 in the Z80's RAM (dead stack aside), VRAM,
+  palette RAM and the picture, with their sounds played through `--press`. `z80_sound_test`'s
+  sound is identical sample for sample; `z80_ics_test`'s and `ics2115_vol_pan`'s are identical
+  but begin 21 and 29 samples early, for the reason in the table above.
 - **PGMTest's video pages:** `bg_test`, `sprite_test`, `video_timing` and `system_basics` match
   the RTL picture pixel for pixel. `fg_test` differs in its rightmost column, for the reason in
   the table above.
 - **Dead stack:** bytes below the stack pointer hold what interrupts pushed earlier, and differ
   wherever an interrupt arrived at a different instruction. `--ignore` leaves them out; orlegend's
-  stack reaches down to 0x81F000.
+  stack reaches down to 0x81F000, and the BIOS's sound driver's down from 0x3FE1 in the Z80's
+  RAM.
 
 Timing checkpoints in the BIOS's boot still show the emulator running some loops about 0.03 %
 faster than the RTL, mostly while it copies ROM into the Z80's RAM and verifies it. Since the

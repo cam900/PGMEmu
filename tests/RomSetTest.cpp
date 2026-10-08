@@ -3,6 +3,7 @@
 #include "pgm/cart/Bios.hpp"
 #include "pgm/cart/PgmImage.hpp"
 #include "pgm/io/RomSources.hpp"
+#include "pgm/machine/Machine.hpp"
 #include "support/Expect.hpp"
 
 #include <algorithm>
@@ -127,4 +128,32 @@ TEST_CASE( "the BIOS of pgm.zip is MAME's dump", "[roms]" )
   REQUIRE( bios.program().known );
   REQUIRE( bios.tiles().known );
   REQUIRE( bios.music().known );
+}
+
+TEST_CASE( "the BIOS starts its sound driver and plays", "[roms]" )
+{
+  auto const zipPath = romsDirectory() / "pgm.zip";
+  if ( !std::filesystem::exists( zipPath ) )
+  {
+    SKIP( "needs " << zipPath );
+  }
+
+  std::array const places{ zipPath };
+  auto const bios = valueOf( pgm::cart::Bios::load( valueOf( RomSources::open( places ) ) ) );
+  pgm::machine::Machine machine{ bios, nullptr };
+  std::size_t frames = 0;
+  std::size_t sounding = 0;
+  for ( int frame = 0; frame < 120; ++frame )
+  {
+    machine.runFrames( 1 );
+    frames += machine.audio().size();
+    sounding += static_cast<std::size_t>( std::ranges::count_if(
+        machine.audio(), []( pgm::machine::AudioFrame const& f ) { return f.left != 0 || f.right != 0; } ) );
+  }
+
+  // Two seconds at 33 kHz, from the ICS2115 the Z80 started, and some of it
+  // the jingle.
+  REQUIRE( frames > 60'000 );
+  REQUIRE( sounding > 10'000 );
+  REQUIRE( machine.z80Registers().im == 1 );
 }

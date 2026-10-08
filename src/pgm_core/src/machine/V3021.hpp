@@ -1,6 +1,7 @@
 #pragma once
 
-// The V3021 serial real-time clock, ported from rtl/v3021.sv.
+// The V3021 serial real-time clock, ported from rtl/v3021.sv at MiSTer core
+// commit e898860.
 //
 // It is reached through one bit of IGS026 register 0xC00006: every bus cycle
 // to that address is one clock edge of the chip's serial port, a write shifts
