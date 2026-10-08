@@ -2,6 +2,8 @@
 
 #include "machine/Igs023.hpp"
 
+#include <array>
+
 using pgm::machine::Igs023;
 using pgm::machine::Time;
 using pgm::machine::UNITS_PER_DOT;
@@ -23,6 +25,26 @@ Time at( int line, int dot )
   return ( line * UNITS_PER_LINE ) + ( dot * UNITS_PER_DOT ) + ( 4 * UNITS_PER_MASTER_TICK );
 }
 
+/// A chip with no ROMs and empty work RAM: enough for its registers and RAMs.
+class Chip
+{
+public:
+  Igs023& operator*()
+  {
+    return mVideo;
+  }
+
+  Igs023* operator->()
+  {
+    return &mVideo;
+  }
+
+private:
+  pgm::machine::Sdram mSdram{};
+  std::array<std::uint8_t, 0x20000> mWorkRam{};
+  Igs023 mVideo{ mSdram, pgm::machine::TileMapping{}, mWorkRam };
+};
+
 std::uint16_t readWord( Igs023& video, Time now, std::uint32_t address )
 {
   return video.read( now, address, true, true );
@@ -32,7 +54,8 @@ std::uint16_t readWord( Igs023& video, Time now, std::uint32_t address )
 
 TEST_CASE( "the line counter is zeroed where vblank ends and counts hsyncs", "[machine][igs023]" )
 {
-  Igs023 video;
+  Chip chip;
+  Igs023& video = *chip;
 
   REQUIRE( readWord( video, at( 40, 10 ), LINE_COUNTER ) == 0 );
   REQUIRE( readWord( video, at( 40, 100 ), LINE_COUNTER ) == 1 );
@@ -41,7 +64,8 @@ TEST_CASE( "the line counter is zeroed where vblank ends and counts hsyncs", "[m
 
 TEST_CASE( "interrupt 6 is raised where vblank begins, until its enable is cleared", "[machine][igs023]" )
 {
-  Igs023 video;
+  Chip chip;
+  Igs023& video = *chip;
   video.write( at( 100, 0 ), FLAGS, IRQ6_ENABLE, true, true );
 
   video.advanceTo( at( 263, 600 ) );
@@ -60,7 +84,8 @@ TEST_CASE( "interrupt 6 is raised where vblank begins, until its enable is clear
 
 TEST_CASE( "interrupt 4 is raised every 62 hsyncs, from power-up, whatever the frame", "[machine][igs023]" )
 {
-  Igs023 video;
+  Chip chip;
+  Igs023& video = *chip;
   video.write( 0, FLAGS, IRQ4_ENABLE, true, true );
 
   // The 62nd hsync since power-up is on line 61.
@@ -80,7 +105,8 @@ TEST_CASE( "interrupt 4 is raised every 62 hsyncs, from power-up, whatever the f
 TEST_CASE( "VRAM is byte-wide, the upper byte of a word at the odd address, with the RTL's mirrors",
            "[machine][igs023]" )
 {
-  Igs023 video;
+  Chip chip;
+  Igs023& video = *chip;
 
   video.write( 0, 0x900010, 0xabcd, true, true );
   REQUIRE( video.vram()[0x11] == 0xab );
@@ -98,7 +124,8 @@ TEST_CASE( "VRAM is byte-wide, the upper byte of a word at the odd address, with
 
 TEST_CASE( "palette RAM holds 4K words in the 68000's byte order, mirrored", "[machine][igs023]" )
 {
-  Igs023 video;
+  Chip chip;
+  Igs023& video = *chip;
 
   video.write( 0, 0xa00002, 0x7fff, true, true );
 

@@ -7,9 +7,11 @@ add_executable( pgm_tests
   control/LoadAndMemoryTest.cpp
   cpu/M68kSingleStepTest.cpp
   io/RomSourcesTest.cpp
+  machine/Igs023DrawTest.cpp
   machine/Igs023Test.cpp
   machine/Igs026Test.cpp
   machine/MachineTest.cpp
+  machine/SpriteEngineTest.cpp
   machine/V3021Test.cpp
   server/JsonLinesServerTest.cpp
   support/Files.cpp

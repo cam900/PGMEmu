@@ -3,15 +3,21 @@
 These questions are deferred on purpose. Each one is removed in the commit whose decision record
 answers it. **This file only shrinks.**
 
-## VRAM contention
+## Timing drift against the RTL
 
-A 68000 cycle to VRAM waits for `igs023.sv`'s byte-wide state machine. The emulator charges that
-as a fixed number of wait states. In the RTL the same cycle also waits while the text and
-background layers fetch from VRAM, which they do in windows of every line. When the layers are
-emulated (M3), is their fetch schedule modelled per line, so that a VRAM cycle waits exactly as
-long as the RTL's does? Or is a per-line average enough? The answer is measured against the
-RTL simulation: the BIOS's boot finishes about 35 µs sooner in the emulator today
-([hardware/differences.md](hardware/differences.md)).
+Checkpoints in the BIOS's boot show the emulator running some loops about 0.03 % faster than the
+RTL simulation, in code that copies ROM into the Z80's RAM and reads both back
+([hardware/differences.md](hardware/differences.md)). Before the interrupt acknowledge's E-clock
+wait was modelled, a drift of this size moved an event of orlegend by a frame by frame 1200; no
+tested outcome depends on it now, but a longer run or another game may. Two candidates are left:
+
+- the background layer's VRAM reads, a few dots per tile, which the emulator does not charge;
+- the RTL's 68000 clock, which stops on every SDRAM access that misses the ROM cache and catches
+  up at 25 MHz afterwards. A model of it was measured to matter little
+  ([0010](decisions/0010-rom-timing.md)), but only on one stretch of code.
+
+Is exact long-run equality worth the cost, or should comparisons over long runs start from a
+shared state instead (M6 starts from RTL save states)? Either answer is a record.
 
 ## Which 68000 is right where Moira and SingleStepTests disagree
 
@@ -21,12 +27,6 @@ BTST on an immediate, LINK on A7, and every address error (`tests/cpu/M68kSingle
 fx68k, the RTL's 68000, is the reference ([0002](decisions/0002-the-fpga-core-is-the-reference.md)).
 Which side does it take? Running the suite's cases on fx68k in the Verilator simulation would
 answer it.
-
-## Mid-frame sprite state
-
-The sprite engine prescans the whole frame. If a game changes the sprite list or zoom registers
-during the frame, the emulator must reproduce exactly when the prescan reads them. Find out from
-the RTL and from the games during M3 whether any game does this.
 
 ## Where the RTL departs from the board
 

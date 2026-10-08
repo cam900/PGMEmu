@@ -1,23 +1,47 @@
 #pragma once
 
-// The IGS023 video chip as the 68000 sees it, ported from rtl/igs023.sv: its
-// registers, VRAM, palette RAM, raster timing, line counter and interrupts.
-// What it draws is added in M3.
+// The IGS023 video chip, ported from rtl/igs023.sv, igs023_fg.sv and
+// igs023_bg.sv: its registers, VRAM, palette RAM, raster timing, line counter
+// and interrupts, and the picture it draws. The sprites are SpriteEngine's.
+//
+// A line is drawn whole when the RTL starts fetching it, at dot 638 of the line
+// before, from the registers and VRAM of that moment. The RTL's layers fetch
+// over the next few microseconds, and its palette is read dot by dot, so a
+// change in between shows on the RTL a line later or within the line; nothing
+// seen so far relies on that.
+
+#include "Sdram.hpp"
+#include "SpriteEngine.hpp"
 
 #include "pgm/machine/Time.hpp"
 
 #include <array>
 #include <cstdint>
+#include <memory>
 #include <span>
+#include <vector>
 
 namespace pgm::machine
 {
+
+/// Where the chip's tile fetches find the cartridge's tiles: at `tileBase` and
+/// above in its address space, the BIOS's below (PGM.sv).
+struct TileMapping
+{
+  bool cartridge{};
+  std::uint32_t tileBase{};
+};
 
 class Igs023
 {
 public:
   static constexpr std::size_t VRAM_SIZE = 0x8000;
   static constexpr std::size_t PALETTE_SIZE = 0x2000;
+  static constexpr int WIDTH = 448;
+  static constexpr int HEIGHT = 224;
+
+  /// `workRam` is what sprite DMA reads; `sdram` holds the tiles and sprites.
+  Igs023( Sdram const& sdram, TileMapping tiles, std::span<std::uint8_t const> workRam );
 
   /// What the reset line does to the chip: drops both interrupts. Registers,
   /// RAM and the raster are untouched, as igs023.sv leaves them.
@@ -48,10 +72,25 @@ public:
   /// is not counted until the layers are emulated (M3).
   [[nodiscard]] static int waitStates( std::uint32_t address, bool write, bool upper, bool lower );
 
+  /// When the 68000 may next have VRAM: `now`, or the end of the text layer's
+  /// fetch if one holds VRAM at `now`. igs023.sv gives VRAM to that fetch from
+  /// dot 638 of each line before a visible one, for 464 cycles of the 33 MHz
+  /// clock, unless the CPU bus-master flag (register 14, bit 10) is set. The
+  /// background's reads, a few dots per 32-pixel tile, are not counted.
+  [[nodiscard]] Time vramFreeAt( Time now ) const;
+
   /// VRAM as the chip's 8-bit RAM holds it, and palette RAM in the 68000's
   /// byte order: what the RTL simulator's VIDEO_RAM and PALETTE_RAM are.
   [[nodiscard]] std::span<std::uint8_t const> vram() const;
   [[nodiscard]] std::span<std::uint8_t const> palette() const;
+
+  /// The last complete frame, RGBA, 448 by 224, and how many have completed.
+  [[nodiscard]] std::span<std::uint8_t const> frame() const;
+  [[nodiscard]] std::int64_t framesCompleted() const;
+
+  /// Until when sprite DMA holds the 68000 off the bus; in the past when it
+  /// does not.
+  [[nodiscard]] Time busHeldUntil() const;
 
   /// Raster position at `now`, for conditions and the debugger.
   [[nodiscard]] static int line( Time now );
@@ -61,8 +100,17 @@ public:
 
 private:
   void onLineStart( int line );
-  void onHsync();
+  void onHsync( Time at );
+  void onFetch( int line );
   [[nodiscard]] std::uint16_t controlFlags() const;
+
+  /// Draws logical line `line`, 0 to 223, into the frame being built.
+  void drawLine( int line );
+  void drawText( int line, std::array<std::uint16_t, WIDTH>& out ) const;
+  void drawBackground( int line, std::array<std::uint16_t, WIDTH>& out ) const;
+  [[nodiscard]] std::uint32_t tileRom( std::uint32_t address ) const;
+  [[nodiscard]] std::uint8_t vramAt( std::size_t address ) const;
+  [[nodiscard]] std::uint32_t vramWord( std::size_t address ) const;
 
   std::array<std::uint16_t, 16> mControl{};
   std::array<std::uint16_t, 32> mZoomTable{};
@@ -74,6 +122,18 @@ private:
   /// The raster events up to here have been applied: each line has two, the
   /// start of its first dot and the rising edge of its hsync.
   std::int64_t mEventsDone{};
+
+  Sdram const& mSdram;
+  TileMapping mTiles;
+  std::span<std::uint8_t const> mWorkRam;
+  std::unique_ptr<SpriteFrame> mSprites;
+  std::unique_ptr<SpriteFrame> mNextSprites;
+  bool mNextSpritesReady{};
+  SpriteList mSpriteList;
+  Time mBusHeldUntil{};
+  std::vector<std::uint8_t> mBuilding;
+  std::vector<std::uint8_t> mFrame;
+  std::int64_t mFramesCompleted{};
 };
 
 } // namespace pgm::machine

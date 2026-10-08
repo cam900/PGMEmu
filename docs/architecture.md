@@ -93,12 +93,11 @@ How some of these modules work, and why:
   direct pointer (ROM, work RAM) or a device. Protection boards patch the table per game.
   Wait states are charged through Moira's `sync()` hook
   ([0003](decisions/0003-cpu-cores.md)).
-- **`Igs023`: video is rendered per line.** Each visible line is produced at its start, from the
-  registers and VRAM as they are at that moment. The RTL also latches per line, so row scroll and
-  mid-frame changes come out as on the core. Cycle-exactness inside a line is not attempted.
-  - The sprite engine is the exception to plain per-line rendering. It keeps the RTL's split
-    into a DMA at line 221, a frame-wide prescan, and per-line rasterising into line buffers.
-  - Decoded tiles and sprite mask offsets are cached per cartridge, never per frame.
+- **`Igs023`: video is drawn a line at a time, sprites a frame at a time**
+  ([0011](decisions/0011-video-is-drawn-by-line-and-by-frame.md)). A line is drawn when the RTL
+  starts fetching it; the sprite layer is drawn from the list the DMA copies at line 221, and
+  shown from the next vertical blank. The sprite engine (`SpriteEngine`) ports the RTL's prescan
+  and row drawing state by state, its zoom patterns and its quirks included.
 - **`Ics2115`: audio is produced at the chip's own rate.** That is one stereo sample every
   `(oscillators + 1) × 32` chip clocks. Resampling to the host rate is the frontend's job, so
   the suite can compare the native stream with WAVs captured from the RTL simulation.

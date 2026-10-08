@@ -25,15 +25,16 @@ Games are `.pgm` images. `scripts/make-pgm.sh` builds them into `roms/` from the
 `../ROMS`, using PGMBuilder from `../PGMBuilder`.
 
 ```sh
-build/release/src/pgm_app/pgmemu                                  # the desktop application
+build/release/src/pgm_app/pgmemu --bios ../ROMS/pgm.zip --rom-dir roms orlegend   # play: arrows, Z X C V, 1 start, 5 coin
 build/release/src/pgm_cli/pgmemu-cli --info roms/orlegend.pgm     # describe an image
 build/release/src/pgm_cli/pgmemu-cli --server --bios ../ROMS/pgm.zip --rom-dir roms
 ```
 
 The control protocol is [docs/spec/control-protocol.md](docs/spec/control-protocol.md).
 
-PGMEmu cannot run games yet. The plan is in [docs/plans/milestones.md](docs/plans/milestones.md),
-and the design in [docs/architecture.md](docs/architecture.md).
+Games without protection, and orlegend, run with picture but no sound yet. The plan is in
+[docs/plans/milestones.md](docs/plans/milestones.md), and the design in
+[docs/architecture.md](docs/architecture.md).
 
 ## Licence
 

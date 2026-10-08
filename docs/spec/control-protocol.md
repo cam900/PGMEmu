@@ -58,6 +58,7 @@ A request that failed:
 | `load_failed` | A game could not be loaded: the file is not a valid `.pgm` ([pgm-format.md](pgm-format.md)), or the BIOS is missing or wrong. The message names the file and the fault. |
 | `no_cartridge` | The method needs a cartridge, and none is loaded. |
 | `not_loaded` | The method needs a running machine, and no game is loaded. |
+| `screenshot_failed` | The picture could not be encoded or written. |
 | `invalid_signal` | A condition names a signal the emulator does not have (§6, `emu.run_until`). |
 | `invalid_region` | No memory region of that name holds anything now. |
 | `invalid_range` | The bytes asked for run past the end of the region. |
@@ -315,3 +316,25 @@ next run executes that instruction rather than stopping at it again. `add` and `
 ### `debug.breakpoint.list`
 
 Answers the addresses of the breakpoints, ascending.
+
+### `video.screenshot`
+
+The last complete picture: 448 by 224 pixels, completed where vertical blank begins, so just
+before every frame boundary.
+
+| Param | Meaning |
+|---|---|
+| `path` | Where to write it as a PNG of RGB pixels, as the simulator writes one. Left out, the PNG comes back in the answer. |
+
+```json
+{"id":6,"ok":true,"result":{"width":448,"height":224,"frame":61,"path":"frame.png"}}
+{"id":7,"ok":true,"result":{"width":448,"height":224,"frame":61,"png_base64":"iVBORw0..."}}
+```
+
+`frame` counts the pictures completed since power-up.
+
+The simulator's screenshot of the same frame is a row lower: its capture counts the line up
+before it stores the first visible one, so its row 0 is stale and the last visible row is
+missing.
+
+Errors: `not_loaded`, `screenshot_failed`.

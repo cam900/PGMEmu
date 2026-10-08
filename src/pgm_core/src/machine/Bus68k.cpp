@@ -8,40 +8,20 @@ namespace
 
 constexpr std::uint32_t ADDRESS_MASK = 0xffffffU;
 
-// The BIOS's SDRAM layout, system_consts.sv.
-constexpr std::uint32_t BIOS_TILES_AT = 0x100000;
-constexpr std::uint32_t BIOS_MUSIC_AT = 0x300000;
-
-std::uint16_t wordOf( std::span<std::uint8_t const> rom, std::uint32_t offset )
-{
-  if ( offset + 1 >= rom.size() )
-  {
-    return 0;
-  }
-  return static_cast<std::uint16_t>( rom[offset] | ( rom[offset + 1] << 8U ) );
-}
-
 } // namespace
 
 std::uint16_t RomSpace::word( std::uint32_t address ) const
 {
-  if ( !cartProgram.empty() && address >= cartBase )
+  if ( cartridge && address >= cartBase )
   {
-    return wordOf( cartProgram, address - cartBase );
+    return sdram->word( Sdram::CART_PROGRAM_AT + ( address - cartBase ) );
   }
-  if ( address < BIOS_TILES_AT )
-  {
-    return wordOf( biosProgram, address );
-  }
-  if ( address < BIOS_MUSIC_AT )
-  {
-    return wordOf( biosTiles, address - BIOS_TILES_AT );
-  }
-  return wordOf( biosMusic, address - BIOS_MUSIC_AT );
+  return sdram->word( Sdram::BIOS_PROGRAM_AT + address );
 }
 
-Bus68k::Bus68k( RomSpace rom, Igs023& video, Igs026& io, InputPorts const& inputs, Time& time )
-    : mRom{ rom }, mVideo{ video }, mIo{ io }, mInputs{ inputs }, mTime{ time }
+Bus68k::Bus68k( RomSpace rom, BusDevices devices, Time& time, std::span<std::uint8_t> workRam )
+    : mRom{ rom }, mVideo{ devices.video }, mIo{ devices.io }, mAsic3{ devices.asic3 }, mInputs{ devices.inputs },
+      mTime{ time }, mWorkRam{ workRam }
 {
 }
 
@@ -68,6 +48,10 @@ std::uint16_t Bus68k::read( std::uint32_t address, bool upper, bool lower )
   case 0xa:
   case 0xb:
   {
+    if ( ( address >> 20U ) == 0x9 )
+    {
+      mTime = mVideo.vramFreeAt( mTime );
+    }
     std::uint16_t const value = mVideo.read( mTime, address, upper, lower );
     mTime += Igs023::waitStates( address, false, upper, lower ) * UNITS_PER_M68K_CYCLE;
     return value;
@@ -80,7 +64,7 @@ std::uint16_t Bus68k::read( std::uint32_t address, bool upper, bool lower )
     }
     if ( ( address & 0xfffff0U ) == 0xc04000U )
     {
-      return 0; // ASIC3 (M7)
+      return mAsic3.read();
     }
     if ( ( address & 0xfe0000U ) == 0xc00000U )
     {
@@ -113,13 +97,22 @@ void Bus68k::write( std::uint32_t address, std::uint16_t value, bool upper, bool
   case 0x9:
   case 0xa:
   case 0xb:
+    if ( ( address >> 20U ) == 0x9 )
+    {
+      mTime = mVideo.vramFreeAt( mTime );
+    }
     mVideo.write( mTime, address, value, upper, lower );
     mTime += Igs023::waitStates( address, true, upper, lower ) * UNITS_PER_M68K_CYCLE;
     return;
   case 0xc:
-    if ( ( address & 0xffff00U ) == 0xc08000U || ( address & 0xfffff0U ) == 0xc04000U )
+    if ( ( address & 0xffff00U ) == 0xc08000U )
     {
-      return; // The inputs are read-only; ASIC3 is M7's.
+      return; // The inputs are read-only.
+    }
+    if ( ( address & 0xfffff0U ) == 0xc04000U )
+    {
+      mAsic3.write( address, value );
+      return;
     }
     if ( ( address & 0xfe0000U ) == 0xc00000U )
     {

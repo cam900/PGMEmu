@@ -11,13 +11,17 @@ add_library( pgm_core
   src/control/MemoryMethods.cpp
   src/control/Params.cpp
   src/control/RunMethods.cpp
+  src/control/VideoMethods.cpp
   src/cpu/MoiraConfigCheck.cpp
   src/io/RomSources.cpp
+  src/machine/Asic3.cpp
   src/machine/Bus68k.cpp
   src/machine/Igs023.cpp
   src/machine/Igs026.cpp
   src/machine/M68k.cpp
   src/machine/Machine.cpp
+  src/machine/Sdram.cpp
+  src/machine/SpriteEngine.cpp
   src/machine/V3021.cpp )
 
 add_library( pgm::core ALIAS pgm_core )

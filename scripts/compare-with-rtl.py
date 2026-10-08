@@ -30,8 +30,10 @@ import json
 import pathlib
 import subprocess
 import sys
+import struct
 import tempfile
 import time
+import zlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 WORKSPACE = ROOT.parent
@@ -85,6 +87,63 @@ class Server:
         self.process.wait(timeout=30)
 
 
+def decode_png(data):
+    """(width, height, rows of RGB bytes) of an 8-bit RGB or RGBA PNG."""
+    assert data[:8] == b"\x89PNG\r\n\x1a\n"
+    at, idat = 8, b""
+    while at < len(data):
+        length, kind = struct.unpack(">I4s", data[at:at + 8])
+        body = data[at + 8:at + 8 + length]
+        if kind == b"IHDR":
+            width, height, depth, colour = struct.unpack(">IIBB", body[:10])
+            assert depth == 8 and colour in (2, 6), "only 8-bit RGB and RGBA are read"
+            channels = 3 if colour == 2 else 4
+        elif kind == b"IDAT":
+            idat += body
+        at += 12 + length
+    raw = zlib.decompress(idat)
+    stride = width * channels
+    rows, previous = [], bytearray(stride)
+    for y in range(height):
+        kind = raw[y * (stride + 1)]
+        line = bytearray(raw[y * (stride + 1) + 1:(y + 1) * (stride + 1)])
+        for x in range(stride):
+            left = line[x - channels] if x >= channels else 0
+            up = previous[x]
+            corner = previous[x - channels] if x >= channels else 0
+            if kind == 1:
+                line[x] = (line[x] + left) & 0xff
+            elif kind == 2:
+                line[x] = (line[x] + up) & 0xff
+            elif kind == 3:
+                line[x] = (line[x] + (left + up) // 2) & 0xff
+            elif kind == 4:
+                guess = left + up - corner
+                pa, pb, pc = abs(guess - left), abs(guess - up), abs(guess - corner)
+                line[x] = (line[x] + (left if pa <= pb and pa <= pc else up if pb <= pc else corner)) & 0xff
+        previous = line
+        rows.append(bytes(line[i] for i in range(stride) if i % channels < 3))
+    return width, height, rows
+
+
+def compare_pictures(mine, theirs):
+    """Differing pixels, and the rows they lie in, of two decoded pictures.
+
+    The simulator's picture is a row lower than the emulator's: its capture
+    (sim_video.h) counts the line up on the hblank that ends vblank, before the
+    first visible line is stored, so its row 0 is stale and the last visible
+    line falls off the bottom. Emulator row y is compared with simulator row
+    y + 1, the last row not at all."""
+    (width, height, left), (_, _, right) = mine, theirs
+    differing, rows = 0, []
+    for y in range(height - 1):
+        count = sum(1 for x in range(width) if left[y][3 * x:3 * x + 3] != right[y + 1][3 * x:3 * x + 3])
+        if count:
+            differing += count
+            rows.append(y)
+    return differing, rows
+
+
 def differing_ranges(left, right):
     """(start, end) of every run of bytes that differ."""
     ranges = []
@@ -115,6 +174,8 @@ def main():
     parser.add_argument("--bios", default=str(WORKSPACE / "ROMS" / "pgm.zip"))
     parser.add_argument("--ranges", type=int, default=12, help="differing ranges to list per region")
     parser.add_argument("--program", type=pathlib.Path, help="a BIOS program to run instead of the BIOS's own")
+    parser.add_argument("--pictures", action="store_true",
+                        help="also compare the pictures, and keep both as PNGs in build/compare/")
     parser.add_argument("--ignore", action="append", default=[], metavar="REGION:START-END",
                         help="a hex byte range of a region to leave out, end exclusive; may be repeated")
     args = parser.parse_args()
@@ -165,6 +226,20 @@ def main():
             for start, end in ranges[:args.ranges]:
                 print(f"    {start:06x}-{end - 1:06x}  emulator {mine[start:min(end, start + 8)].hex()}"
                       f"  simulator {theirs[start:min(end, start + 8)].hex()}")
+
+        if args.pictures:
+            pictures = ROOT / "build" / "compare"
+            pictures.mkdir(parents=True, exist_ok=True)
+            decoded = {}
+            for server in (emulator, simulator):
+                label = args.program.parent.parent.name if args.program else args.game
+                path = pictures / f"{label}-{frame}-{server.name}.png"
+                server.call("video.screenshot", path=str(path))
+                decoded[server.name] = decode_png(path.read_bytes())
+            differing, rows = compare_pictures(decoded["emulator"], decoded["simulator"])
+            identical &= differing == 0
+            where = f" in rows {rows[0]}-{rows[-1]}" if rows else ""
+            print(f"  picture: {'identical' if not differing else f'{differing} pixels differ{where}'}")
 
     emulator.close()
     simulator.close()

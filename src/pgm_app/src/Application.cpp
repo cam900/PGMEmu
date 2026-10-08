@@ -1,5 +1,6 @@
 #include "Application.hpp"
 
+#include "Keyboard.hpp"
 #include "TestPattern.hpp"
 
 #include "pgm/video/Screen.hpp"
@@ -37,7 +38,7 @@ std::string sdlError( std::string const& what )
 
 } // namespace
 
-std::expected<std::unique_ptr<Application>, std::string> Application::create()
+std::expected<std::unique_ptr<Application>, std::string> Application::create( Settings settings )
 {
   if ( !SDL_Init( SDL_INIT_VIDEO | SDL_INIT_GAMEPAD ) )
   {
@@ -74,7 +75,7 @@ std::expected<std::unique_ptr<Application>, std::string> Application::create()
   SDL_SetGPUSwapchainParameters( device, window, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, SDL_GPU_PRESENTMODE_VSYNC );
 
   // From here on the destructor owns the window and the device.
-  std::unique_ptr<Application> application{ new Application{ window, device } };
+  std::unique_ptr<Application> application{ new Application{ window, device, std::move( settings ) } };
   if ( !application->mScreen->valid() )
   {
     return std::unexpected( sdlError( "creating the screen texture" ) );
@@ -82,9 +83,9 @@ std::expected<std::unique_ptr<Application>, std::string> Application::create()
   return application;
 }
 
-Application::Application( SDL_Window* window, SDL_GPUDevice* device )
+Application::Application( SDL_Window* window, SDL_GPUDevice* device, Settings settings )
     : mWindow{ window }, mDevice{ device }, mScreen{ std::make_unique<ScreenTexture>( device ) },
-      mFrame{ makeTestPattern() }, mEmulator{ Settings{} }, mDispatcher{ mEmulator }
+      mFrame{ makeTestPattern() }, mEmulator{ std::move( settings ) }, mDispatcher{ mEmulator }
 {
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
@@ -153,12 +154,47 @@ void Application::run()
       continue;
     }
 
+    emulateFrame();
+
     ImGui_ImplSDLGPU3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
     drawInterface();
     ImGui::Render();
     renderFrame();
+  }
+}
+
+void Application::loadGame( std::string const& nameOrPath )
+{
+  bool const isPath = nameOrPath.find_first_of( "/.\\" ) != std::string::npos;
+  auto const response = mDispatcher.handle( control::Json{
+      { "id", 1 }, { "method", "emu.load_game" }, { "params", { { isPath ? "path" : "name", nameOrPath } } } } );
+  mLastError = response.at( "ok" ) == true ? std::string{} : response.at( "error" ).at( "message" ).get<std::string>();
+  mPicturesShown = -1;
+}
+
+void Application::emulateFrame()
+{
+  // The frame loop drives the machine directly: it is the frontend's own clock,
+  // not a capability, and going through JSON sixty times a second buys nothing.
+  machine::Machine* const machine = mEmulator.machine();
+  if ( machine == nullptr || mPaused )
+  {
+    return;
+  }
+  // ImGui keeps the keyboard while one of its widgets has focus.
+  if ( !ImGui::GetIO().WantCaptureKeyboard )
+  {
+    machine->setInputs( inputsFromKeyboard( SDL_GetKeyboardState( nullptr ) ) );
+  }
+  machine->runFrames( 1 );
+  if ( machine->picturesDrawn() != mPicturesShown )
+  {
+    mPicturesShown = machine->picturesDrawn();
+    auto const picture = machine->picture();
+    mFrame.assign( picture.begin(), picture.end() );
+    mFrameChanged = true;
   }
 }
 
@@ -190,6 +226,16 @@ void Application::drawMenuBar()
     if ( ImGui::MenuItem( "Quit" ) )
     {
       mQuit = true;
+    }
+    ImGui::EndMenu();
+  }
+  if ( ImGui::BeginMenu( "Emulation" ) )
+  {
+    ImGui::MenuItem( "Pause", nullptr, &mPaused );
+    if ( ImGui::MenuItem( "Reset" ) )
+    {
+      static_cast<void>( mDispatcher.handle(
+          control::Json{ { "id", 1 }, { "method", "emu.reset" }, { "params", { { "cycles", 100 } } } } ) );
     }
     ImGui::EndMenu();
   }
@@ -250,7 +296,20 @@ void Application::drawStatusWindow()
     {
       ImGui::Text( "emu.status failed: %s", response.at( "error" ).dump().c_str() );
     }
-    ImGui::Text( "Screen: %zux%zu", video::SCREEN_WIDTH, video::SCREEN_HEIGHT );
+    if ( response.at( "ok" ) == true && response.at( "result" ).contains( "frame" ) )
+    {
+      auto const& result = response.at( "result" );
+      ImGui::Text( "Game: %s", result.at( "game_name" ).get_ref<std::string const&>().c_str() );
+      ImGui::Text( "Frame: %lld", static_cast<long long>( result.at( "frame" ).get<std::int64_t>() ) );
+    }
+    else
+    {
+      ImGui::TextUnformatted( "No game loaded" );
+    }
+    if ( !mLastError.empty() )
+    {
+      ImGui::TextWrapped( "Load failed: %s", mLastError.c_str() );
+    }
     ImGui::Text( "Interface: %.1f fps", static_cast<double>( ImGui::GetIO().Framerate ) );
   }
   ImGui::End();

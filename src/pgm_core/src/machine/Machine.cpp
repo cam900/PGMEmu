@@ -50,22 +50,48 @@ moira::u8 interruptLevel( Igs023 const& video )
   return video.irq4() ? 4 : 0;
 }
 
-RomSpace romSpace( cart::Bios const& bios, cart::PgmImage const* cartridge )
+std::span<std::uint8_t const> romOf( cart::PgmImage const* cartridge, cart::RomType type )
 {
-  RomSpace rom{ .biosProgram = bios.program().data,
+  if ( cartridge == nullptr )
+  {
+    return {};
+  }
+  auto const rom = cartridge->rom( type );
+  return rom ? rom->data : std::span<std::uint8_t const>{};
+}
+
+std::uint32_t mappingOf( cart::PgmImage const* cartridge, cart::RomType type )
+{
+  if ( cartridge == nullptr )
+  {
+    return 0;
+  }
+  auto const rom = cartridge->rom( type );
+  return rom ? rom->mapping : 0;
+}
+
+/// The region ASIC3 reports: the cartridge's default when its region block is
+/// ASIC3's, the world otherwise, which is what the RTL wires in for every game.
+std::uint8_t asic3Region( cart::PgmImage const* cartridge )
+{
+  if ( cartridge == nullptr || !cartridge->regionInfo() ||
+       cartridge->regionInfo()->scheme != cart::RegionScheme::ASIC3 )
+  {
+    return 0;
+  }
+  return static_cast<std::uint8_t>( cartridge->regionInfo()->defaultRegion );
+}
+
+Sdram sdramOf( cart::Bios const& bios, cart::PgmImage const* cartridge )
+{
+  return Sdram{ .biosProgram = bios.program().data,
                 .biosTiles = bios.tiles().data,
                 .biosMusic = bios.music().data,
-                .cartProgram = {},
-                .cartBase = 0 };
-  if ( cartridge != nullptr )
-  {
-    if ( auto const program = cartridge->rom( cart::RomType::PRG ) )
-    {
-      rom.cartProgram = program->data;
-      rom.cartBase = program->mapping;
-    }
-  }
-  return rom;
+                .cartProgram = romOf( cartridge, cart::RomType::PRG ),
+                .cartTiles = romOf( cartridge, cart::RomType::TLE ),
+                .cartMusic = romOf( cartridge, cart::RomType::AUD ),
+                .cartBRom = romOf( cartridge, cart::RomType::SPM ),
+                .cartARom = romOf( cartridge, cart::RomType::SPC ) };
 }
 
 } // namespace
@@ -73,7 +99,18 @@ RomSpace romSpace( cart::Bios const& bios, cart::PgmImage const* cartridge )
 struct Machine::Parts
 {
   Parts( cart::Bios const& bios, cart::PgmImage const* cartridge )
-      : bus{ romSpace( bios, cartridge ), video, io, inputs, now }, cpu{ bus, now }
+      : sdram{ sdramOf( bios, cartridge ) },
+        video{ sdram,
+               TileMapping{ .cartridge = cartridge != nullptr, .tileBase = mappingOf( cartridge, cart::RomType::TLE ) },
+               workRam },
+        asic3{ asic3Region( cartridge ) },
+        bus{ RomSpace{ .sdram = &sdram,
+                       .cartridge = cartridge != nullptr,
+                       .cartBase = mappingOf( cartridge, cart::RomType::PRG ) },
+             BusDevices{ .video = video, .io = io, .asic3 = asic3, .inputs = inputs },
+             now,
+             workRam },
+        cpu{ bus, now }
   {
   }
 
@@ -88,9 +125,12 @@ struct Machine::Parts
   /// stopping at again.
   std::optional<std::uint32_t> resumeFrom;
   std::set<std::uint32_t> breakpoints;
+  Sdram sdram;
+  std::array<std::uint8_t, 0x20000> workRam{};
   InputPorts inputs;
   Igs023 video;
   Igs026 io;
+  Asic3 asic3;
   Bus68k bus;
   M68k cpu;
 };
@@ -119,12 +159,19 @@ RunResult Machine::Parts::run( Time until, std::function<bool()> const* conditio
         video.advanceTo( now );
         continue;
       }
+      cpu.startEClock( now );
       cpu.reset();
       cpuStarted = true;
       continue;
     }
 
     video.advanceTo( now );
+    if ( now < video.busHeldUntil() )
+    {
+      // Sprite DMA has the bus; the 68000 waits for it.
+      now = std::min( video.busHeldUntil(), until );
+      continue;
+    }
     cpu.setIPL( interruptLevel( video ) );
 
     std::uint32_t const pc = cpu.getPC0();
@@ -170,6 +217,7 @@ void Machine::reset( std::int64_t masterTicks )
   Parts& parts = *mParts;
   parts.io.reset();
   parts.video.reset();
+  parts.asic3.reset();
   parts.now += masterTicks * UNITS_PER_MASTER_TICK;
   parts.video.advanceTo( parts.now );
   parts.resetReleasedAt = parts.now;
@@ -289,6 +337,16 @@ std::span<std::uint8_t const> Machine::videoRam() const
 std::span<std::uint8_t const> Machine::paletteRam() const
 {
   return mParts->video.palette();
+}
+
+std::span<std::uint8_t const> Machine::picture() const
+{
+  return mParts->video.frame();
+}
+
+std::int64_t Machine::picturesDrawn() const
+{
+  return mParts->video.framesCompleted();
 }
 
 std::span<std::uint8_t const> Machine::z80Ram() const

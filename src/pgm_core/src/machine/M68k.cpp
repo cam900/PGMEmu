@@ -5,6 +5,14 @@
 namespace pgm::machine
 {
 
+namespace
+{
+
+/// Cycles from the start of interrupt processing to the acknowledge cycle.
+constexpr Time ACKNOWLEDGE_AFTER = 10;
+
+} // namespace
+
 M68k::M68k( Bus68k& bus, Time& time ) : mBus{ &bus }, mTime{ &time }
 {
   setModel( moira::Model::M68000 );
@@ -20,6 +28,26 @@ std::string M68k::disassembleAt( std::uint32_t address, int& length ) const
   std::array<char, 128> text{};
   length = disassemble( text.data(), address );
   return text.data();
+}
+
+void M68k::startEClock( Time at )
+{
+  mEClockOrigin = at;
+}
+
+void M68k::willInterrupt( moira::u8 /*level*/ )
+{
+  // PGM.sv answers every interrupt acknowledge with VPA, so the 68000 runs it
+  // as a 6800 cycle (fx68k.sv): it asserts VMA when its E counter, which counts
+  // CPU cycles 0 to 9 from reset, reaches 3, and ends the cycle when it reaches
+  // 8 and the rest of the cycle has passed. Moira charges the acknowledge 4
+  // cycles; the 6800 cycle takes 7 plus the wait for the counter to reach 3.
+  // The acknowledge starts 10 cycles from here, after an internal 6 and the
+  // stacking of the PC's low word.
+  Time const cycles = ( ( *mTime - mEClockOrigin ) / UNITS_PER_M68K_CYCLE ) + ACKNOWLEDGE_AFTER;
+  auto const phase = static_cast<int>( cycles % 10 );
+  int const waitForVma = ( 3 - phase + 10 ) % 10;
+  sync( waitForVma + 3 );
 }
 
 void M68k::sync( int cycles )

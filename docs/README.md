@@ -56,6 +56,7 @@ it, never "at the end of the session".
 - [0008: The renderer is SDL_GPU](decisions/0008-the-renderer-is-sdl-gpu.md)
 - [0009: Moira's configuration is ours](decisions/0009-moira-configuration.md)
 - [0010: The ROM cache's timing is not reproduced](decisions/0010-rom-timing.md)
+- [0011: Layers are drawn a line at a time, sprites a frame at a time](decisions/0011-video-is-drawn-by-line-and-by-frame.md)
 
 ### Hardware
 - [Differences](hardware/differences.md): where the emulator departs from the RTL, and the RTL from the board

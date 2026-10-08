@@ -17,22 +17,6 @@ A session takes work by saying *build M<n> of docs/plans/milestones.md*. Every t
 Every milestone ends with an **exit** condition that can be checked without a person looking at
 a screen. That is why the control API and the headless runner come before most of the hardware.
 
-## M3: Video
-
-*Delivers:*
-
-- Palette and backdrop; the FG layer; the BG layer with row scroll; the mixer.
-- Sprites: DMA, mask and colour streams, zoom by the RTL's `scale_pattern`, line buffers,
-  priority.
-- `video.screenshot` returning a PNG inline; layer, tile and sprite viewers.
-- Real-time play from the keyboard.
-
-*Exit:*
-
-- Framebuffer hashes of the BIOS logo and the RTC screen equal the RTL simulation's.
-- PGMTest `fg_test`, `bg_test`, `sprite_test` and `video_timing` pass.
-- orlegend at frame 1500 equals the RTL simulation's frame.
-
 ## M4: Sound
 
 *Delivers:*
@@ -58,6 +42,7 @@ a screen. That is why the control API and the headless runner come before most o
 - JSON-lines over TCP attached to the GUI.
 - Save states, NVRAM, `state.*` and `nvram.*`.
 - Trace ring and watchpoints.
+- Debugger windows for the video: layer toggles, tile and tilemap viewers, the sprite list.
 - `test.*`.
 - A Claude Code project skill for booting, running, inspecting and comparing with the RTL.
 
@@ -80,7 +65,8 @@ under two minutes.
 
 *Delivers,* in order:
 
-1. `Asic3`: orlegend fully playable.
+1. ASIC3's region: chosen by the player among the image's regions (the chip itself came with M3,
+   for orlegend's video).
 2. `Igs025` and `Igs022`: killbld, drgw3, dwex.
 3. The ARM7TDMI core: our own or SkyEmu's, decided by a record; the ARM7TDMI suite passing.
 4. `Igs027a` type 1: kovsh and photoy2k, then ket, espgal and ddp3.

@@ -23,6 +23,10 @@ public:
   /// `time` is the machine's clock, which this CPU advances as it runs.
   M68k( Bus68k& bus, Time& time );
 
+  /// Sets when the 68000's E clock started counting: the release of reset,
+  /// which is when fx68k's E counter leaves zero.
+  void startEClock( Time at );
+
   /// Whether a STOP instruction is waiting for an interrupt.
   [[nodiscard]] bool stopped() const;
 
@@ -31,6 +35,9 @@ public:
 
 protected:
   void sync( int cycles ) override;
+
+  /// Lengthens the interrupt acknowledge cycle to the E clock, as VPA does.
+  void willInterrupt( moira::u8 level ) override;
 
   [[nodiscard]] moira::u8 read8( moira::u32 addr ) const override;
   [[nodiscard]] moira::u16 read16( moira::u32 addr ) const override;
@@ -45,6 +52,7 @@ private:
   // CPU's side; the bus it reaches is not.
   Bus68k* mBus;
   Time* mTime;
+  Time mEClockOrigin{};
 };
 
 } // namespace pgm::machine

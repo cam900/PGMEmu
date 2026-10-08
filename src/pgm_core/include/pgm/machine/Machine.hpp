@@ -114,6 +114,12 @@ public:
   [[nodiscard]] std::span<std::uint8_t const> paletteRam() const;
   [[nodiscard]] std::span<std::uint8_t const> z80Ram() const;
 
+  /// The last complete frame: 448 by 224 pixels, RGBA, row by row. It is
+  /// complete when vertical blank begins, which is just before a frame boundary.
+  [[nodiscard]] std::span<std::uint8_t const> picture() const;
+  /// Pictures completed since power-up.
+  [[nodiscard]] std::int64_t picturesDrawn() const;
+
 private:
   struct Parts;
   std::unique_ptr<Parts> mParts;

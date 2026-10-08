@@ -19,6 +19,7 @@ void addEmuMethods( Dispatcher& dispatcher, Emulator& emulator );
 void addMemoryMethods( Dispatcher& dispatcher, Emulator& emulator );
 void addRunMethods( Dispatcher& dispatcher, Emulator& emulator );
 void addCpuMethods( Dispatcher& dispatcher, Emulator& emulator );
+void addVideoMethods( Dispatcher& dispatcher, Emulator& emulator );
 
 Error badRequest( std::string message );
 

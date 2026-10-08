@@ -24,8 +24,12 @@ class Application
 {
 public:
   /// Opens the window and the GPU device and sets up ImGui. Answers why when
-  /// any of them cannot be had.
-  static std::expected<std::unique_ptr<Application>, std::string> create();
+  /// any of them cannot be had. `settings` say where games and the BIOS are.
+  static std::expected<std::unique_ptr<Application>, std::string> create( Settings settings );
+
+  /// Loads a game by set name or path, through the dispatcher, as an agent
+  /// would; a failure is shown in the status window.
+  void loadGame( std::string const& nameOrPath );
 
   ~Application();
 
@@ -38,7 +42,11 @@ public:
   void run();
 
 private:
-  Application( SDL_Window* window, SDL_GPUDevice* device );
+  Application( SDL_Window* window, SDL_GPUDevice* device, Settings settings );
+
+  /// Runs the machine for one frame, if a game is loaded and it is not paused,
+  /// and takes its picture when a new one is complete.
+  void emulateFrame();
 
   /// Lays out one frame of the user interface.
   void drawInterface();
@@ -59,6 +67,9 @@ private:
   std::string mImguiIniPath;
   bool mQuit{};
   bool mShowStatus{ true };
+  bool mPaused{};
+  std::int64_t mPicturesShown{ -1 };
+  std::string mLastError;
   bool mShowImguiDemo{};
 };
 

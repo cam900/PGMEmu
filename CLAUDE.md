@@ -17,13 +17,13 @@ the desktop application and with it SDL3 and ImGui.
 
 ```sh
 ./scripts/make-pgm.sh                       # build roms/*.pgm from ../ROMS with ../PGMBuilder
-build/debug/src/pgm_app/pgmemu              # desktop
+build/debug/src/pgm_app/pgmemu --bios ../ROMS/pgm.zip --rom-dir roms orlegend   # desktop: arrows, Z X C V, 1 start, 5 coin
 build/debug/src/pgm_cli/pgmemu-cli --info roms/orlegend.pgm
 build/debug/src/pgm_cli/pgmemu-cli --server --bios ../ROMS/pgm.zip --rom-dir roms
 ```
 
 ```sh
-./scripts/compare-with-rtl.py --frames 60 600       # memory against the RTL simulation
+./scripts/compare-with-rtl.py --frames 60 600 --pictures   # memory and pictures against the RTL simulation
 ./scripts/make-pgmtest.sh system_basics             # a PGMTest page as a BIOS program
 ./scripts/compare-with-rtl.py --program build/tools/pgmtest-system_basics/pgm/pgm_p02s.u20 --frames 30
 ./scripts/fetch-680x0-tests.sh                      # the SingleStepTests 68000 suite
