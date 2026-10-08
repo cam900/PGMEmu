@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <fstream>
 #include <string_view>
 #include <utility>
 
@@ -94,7 +95,13 @@ std::expected<std::unique_ptr<Application>, std::string> Application::create( Se
   SDL_SetGPUSwapchainParameters( device, window, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, SDL_GPU_PRESENTMODE_VSYNC );
 
   // From here on the destructor owns the window and the device.
+  bool const biosGiven = !settings.biosSources.empty();
   std::unique_ptr<Application> application{ new Application{ window, device, std::move( settings ) } };
+  application->mHaveBios = biosGiven;
+  if ( !biosGiven )
+  {
+    application->restoreBios();
+  }
   if ( !application->mScreen->valid() )
   {
     return std::unexpected( sdlError( "creating the screen texture" ) );
@@ -128,6 +135,7 @@ Application::Application( SDL_Window* window, SDL_GPUDevice* device, Settings se
     mImguiIniPath = std::string{ prefPath } + "imgui.ini";
     mInputMapPath = std::filesystem::path{ prefPath } / "input.json";
     mDisplayPath = std::filesystem::path{ prefPath } / "display.json";
+    mSettingsPath = std::filesystem::path{ prefPath } / "settings.json";
     SDL_free( prefPath );
     io.IniFilename = mImguiIniPath.c_str();
   }
@@ -195,6 +203,15 @@ void Application::run()
     {
       ImGui_ImplSDL3_ProcessEvent( &event );
       mGamepads.handle( event );
+      if ( event.type == SDL_EVENT_DROP_FILE && event.drop.data != nullptr )
+      {
+        loadGame( event.drop.data );
+      }
+      else if ( event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_O && !event.key.repeat &&
+                ( event.key.mod & ( SDL_KMOD_GUI | SDL_KMOD_CTRL ) ) != 0 )
+      {
+        openFile();
+      }
       static_cast<void>( mInputWindow->capture( event ) );
       if ( event.type == SDL_EVENT_QUIT ||
            ( event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID( mWindow ) ) )
@@ -211,7 +228,9 @@ void Application::run()
       continue;
     }
 
+    loadChosen();
     updateEmulation();
+    updateTitle();
 
     ImGui_ImplSDLGPU3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
@@ -246,8 +265,159 @@ void Application::serve( std::uint16_t linePort, std::uint16_t mcpPort )
 void Application::loadGame( std::string const& nameOrPath )
 {
   bool const isPath = nameOrPath.find_first_of( "/.\\" ) != std::string::npos;
+  if ( isPath && !mHaveBios )
+  {
+    // A BIOS beside the game, or a folder up, as MAME's sets are kept.
+    std::filesystem::path const folder = std::filesystem::path{ nameOrPath }.parent_path();
+    for ( auto const& candidate : { folder / "pgm.zip", folder.parent_path() / "pgm.zip" } )
+    {
+      std::error_code failed;
+      if ( std::filesystem::is_regular_file( candidate, failed ) )
+      {
+        setBios( candidate, true );
+        break;
+      }
+    }
+  }
   auto const response = request( "emu.load_game", { { isPath ? "path" : "name", nameOrPath } } );
   mLastError = response.at( "ok" ) == true ? std::string{} : response.at( "error" ).at( "message" ).get<std::string>();
+  if ( !mLastError.empty() && !mHaveBios )
+  {
+    mLastError += "; choose pgm.zip with File > Choose BIOS";
+  }
+  mTitleCheckIn = 0;
+}
+
+void Application::setBios( std::filesystem::path const& path, bool keep )
+{
+  auto const response = request( "emu.set_bios", { { "sources", control::Json::array( { path.string() } ) } } );
+  if ( response.at( "ok" ) != true )
+  {
+    mLastError = response.at( "error" ).at( "message" ).get<std::string>();
+    return;
+  }
+  mHaveBios = true;
+  mLastError.clear();
+  if ( keep && !mSettingsPath.empty() )
+  {
+    std::ofstream stream{ mSettingsPath };
+    stream << control::Json{ { "bios", path.string() } }.dump( 2 ) << '\n';
+  }
+}
+
+void Application::restoreBios()
+{
+  std::ifstream stream{ mSettingsPath };
+  if ( mSettingsPath.empty() || !stream )
+  {
+    return;
+  }
+  auto const json = control::Json::parse( stream, nullptr, false );
+  if ( json.is_object() && json.contains( "bios" ) && json.at( "bios" ).is_string() )
+  {
+    std::filesystem::path const bios{ json.at( "bios" ).get<std::string>() };
+    std::error_code failed;
+    if ( std::filesystem::exists( bios, failed ) )
+    {
+      setBios( bios, false );
+    }
+  }
+}
+
+void Application::chooseBios()
+{
+  static constexpr std::array<SDL_DialogFileFilter, 1> FILTERS{ { { .name = "The PGM BIOS (pgm.zip)",
+                                                                    .pattern = "zip" } } };
+  SDL_ShowOpenFileDialog(
+      []( void* self, char const* const* files, int /*filter*/ )
+      {
+        if ( files != nullptr && files[0] != nullptr )
+        {
+          auto* const application = static_cast<Application*>( self );
+          std::scoped_lock const lock{ application->mChosenMutex };
+          application->mChosenBios = files[0];
+        }
+      },
+      this,
+      mWindow,
+      FILTERS.data(),
+      static_cast<int>( FILTERS.size() ),
+      nullptr,
+      false );
+}
+
+void Application::openFile()
+{
+  static constexpr std::array<SDL_DialogFileFilter, 1> FILTERS{ { { .name = "PGM cartridges", .pattern = "pgm" } } };
+  SDL_ShowOpenFileDialog(
+      []( void* self, char const* const* files, int /*filter*/ )
+      {
+        // Null on an error, empty when the dialog was cancelled.
+        if ( files != nullptr && files[0] != nullptr )
+        {
+          auto* const application = static_cast<Application*>( self );
+          std::scoped_lock const lock{ application->mChosenMutex };
+          application->mChosen = files[0];
+        }
+      },
+      this,
+      mWindow,
+      FILTERS.data(),
+      static_cast<int>( FILTERS.size() ),
+      nullptr,
+      false );
+}
+
+void Application::loadChosen()
+{
+  std::optional<std::string> chosen;
+  std::optional<std::string> bios;
+  {
+    std::scoped_lock const lock{ mChosenMutex };
+    chosen.swap( mChosen );
+    bios.swap( mChosenBios );
+  }
+  if ( bios )
+  {
+    setBios( *bios, true );
+  }
+  if ( chosen )
+  {
+    loadGame( *chosen );
+  }
+}
+
+void Application::updateTitle()
+{
+  // Asked twice a second, and at once after a load.
+  if ( mTitleCheckIn-- > 0 )
+  {
+    return;
+  }
+  mTitleCheckIn = 30;
+  auto const status = request( "emu.status" );
+  if ( status.at( "ok" ) != true )
+  {
+    return;
+  }
+  control::Json const& name = status.at( "result" ).at( "game_name" );
+  std::optional<std::string> const game = name.is_string() ? std::optional{ name.get<std::string>() } : std::nullopt;
+  if ( game == mTitledGame )
+  {
+    return;
+  }
+  mTitledGame = game;
+  std::string title = "PGMEmu";
+  if ( game == Emulator::BIOS_ONLY )
+  {
+    title += " - PGM BIOS";
+  }
+  else if ( game )
+  {
+    auto const info = request( "emu.cartridge_info" );
+    title += " - " + ( info.at( "ok" ) == true ? info.at( "result" ).at( "long_name" ).get<std::string>() : *game );
+  }
+  SDL_SetWindowTitle( mWindow, title.c_str() );
 }
 
 void Application::updateEmulation()
@@ -297,6 +467,15 @@ void Application::drawMenuBar()
   }
   if ( ImGui::BeginMenu( "File" ) )
   {
+    if ( ImGui::MenuItem( "Open...", SDL_GetPlatform() == std::string_view{ "macOS" } ? "Cmd+O" : "Ctrl+O" ) )
+    {
+      openFile();
+    }
+    if ( ImGui::MenuItem( "Choose BIOS..." ) )
+    {
+      chooseBios();
+    }
+    ImGui::Separator();
     if ( ImGui::MenuItem( "Quit" ) )
     {
       mQuit = true;

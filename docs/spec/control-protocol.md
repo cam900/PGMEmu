@@ -173,6 +173,17 @@ Powers the board up again with the loaded cartridge, its game made another regio
 Errors: `unknown_region` (the BIOS alone, or nothing, is loaded, or the game has no such region),
 `bad_request`. A region refused leaves the game running undisturbed.
 
+### `emu.set_bios`
+
+Says where the BIOS files are taken from for the loads that follow, in place of the BIOS sources
+the emulator was started with. What is loaded runs on undisturbed.
+
+| Param | Meaning |
+|---|---|
+| `sources` | Paths of directories or zips, one or more, such as that of `pgm.zip`; the first that has a file wins. |
+
+Errors: `bad_request`, when `sources` is empty or names a path that does not exist.
+
 ### `emu.cartridge_info`
 
 Describes the loaded cartridge. Takes no parameters. `pgmemu-cli --info FILE` prints the same

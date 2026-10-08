@@ -154,6 +154,24 @@ TEST_CASE( "a game runs as its image's region, or as the one it is loaded with",
            "bad_request" );
 }
 
+TEST_CASE( "emu.set_bios says where the BIOS is for the loads that follow", "[control]" )
+{
+  Fixture const fixture;
+  pgm::Settings settings = fixture.settings();
+  settings.biosSources.clear();
+  pgm::Emulator emulator{ settings };
+  Dispatcher const dispatcher{ emulator };
+
+  REQUIRE( errorCode( call( dispatcher, "emu.load_game", { { "name", "testcart" } } ) ) == "load_failed" );
+  REQUIRE( errorCode( call( dispatcher, "emu.set_bios", { { "sources", Json::array( { "/no/such/pgm.zip" } ) } } ) ) ==
+           "bad_request" );
+  REQUIRE( errorCode( call( dispatcher, "emu.set_bios", { { "sources", Json::array() } } ) ) == "bad_request" );
+
+  REQUIRE( call( dispatcher, "emu.set_bios", { { "sources", Json::array( { fixture.biosDirectory().string() } ) } } )
+               .at( "ok" ) == true );
+  REQUIRE( call( dispatcher, "emu.load_game", { { "name", "testcart" } } ).at( "ok" ) == true );
+}
+
 TEST_CASE( "no BIOS source means no game can be loaded", "[control]" )
 {
   Fixture const fixture;

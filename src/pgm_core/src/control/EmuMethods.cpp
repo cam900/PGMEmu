@@ -3,7 +3,12 @@
 #include "pgm/Version.hpp"
 #include "pgm/control/Describe.hpp"
 
+#include <spdlog/fmt/fmt.h>
+
+#include <filesystem>
+#include <system_error>
 #include <utility>
+#include <vector>
 
 namespace pgm::control
 {
@@ -111,6 +116,33 @@ void addEmuMethods( Dispatcher& dispatcher, Emulator& emulator )
         {
           return std::unexpected( loadError( set.error() ) );
         }
+        return Json::object();
+      } );
+
+  dispatcher.add(
+      "emu.set_bios",
+      info( "Where the BIOS files are taken from for the loads that follow: directories and zips, the first that "
+            "has a file winning. The game loaded runs on undisturbed.",
+            { { .name = "sources",
+                .type = "array",
+                .description = "Paths of directories or zips, such as the path of pgm.zip." } } ),
+      [&emulator]( Json const& params ) -> Outcome
+      {
+        if ( !params.contains( "sources" ) || !params.at( "sources" ).is_array() || params.at( "sources" ).empty() )
+        {
+          return std::unexpected( badRequest( "sources must be a list of one path or more" ) );
+        }
+        std::vector<std::filesystem::path> sources;
+        for ( Json const& source : params.at( "sources" ) )
+        {
+          std::error_code failed;
+          if ( !source.is_string() || !std::filesystem::exists( source.get<std::string>(), failed ) )
+          {
+            return std::unexpected( badRequest( fmt::format( "{} is not a path that exists", source.dump() ) ) );
+          }
+          sources.emplace_back( source.get<std::string>() );
+        }
+        emulator.setBiosSources( std::move( sources ) );
         return Json::object();
       } );
 

@@ -22,6 +22,8 @@
 #include <expected>
 #include <filesystem>
 #include <memory>
+#include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -48,6 +50,17 @@ public:
   /// would; a failure is shown in the status window.
   void loadGame( std::string const& nameOrPath );
 
+  /// Shows the dialog that opens a .pgm file. The file chosen is loaded on a
+  /// later frame: the dialog answers on a thread of its own.
+  void openFile();
+  /// Shows the dialog that chooses the BIOS, pgm.zip; taken as openFile()'s.
+  void chooseBios();
+  /// Takes the BIOS from `path` from the next load on, and keeps it for the
+  /// next start when `keep`.
+  void setBios( std::filesystem::path const& path, bool keep );
+  /// The BIOS kept from an earlier start, when the command line gave none.
+  void restoreBios();
+
   ~Application();
 
   Application( Application const& ) = delete;
@@ -67,6 +80,10 @@ private:
   /// Hands the keyboard to the emulation thread, and takes the last picture
   /// it completed.
   void updateEmulation();
+  /// Loads the file the open dialog chose, if it has.
+  void loadChosen();
+  /// Names the loaded cartridge in the window's title.
+  void updateTitle();
 
   /// Lays out one frame of the user interface.
   void drawInterface();
@@ -119,6 +136,19 @@ private:
   bool mScreenFocused{};
   std::int64_t mPicturesShown{ -1 };
   std::string mLastError;
+  /// The files the open dialogs chose, waiting to be taken.
+  std::mutex mChosenMutex;
+  std::optional<std::string> mChosen;
+  std::optional<std::string> mChosenBios;
+  /// Where the application's own settings are kept, the BIOS among them,
+  /// beside imgui.ini; empty when they are not kept.
+  std::filesystem::path mSettingsPath;
+  /// Whether the emulator has been told where the BIOS is.
+  bool mHaveBios{};
+  /// The game the window's title names, and the frames until it is asked
+  /// again what is loaded: a game may be loaded by an agent as well.
+  std::optional<std::string> mTitledGame;
+  int mTitleCheckIn{};
   bool mShowImguiDemo{};
 };
 

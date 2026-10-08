@@ -100,6 +100,10 @@ public:
 
   [[nodiscard]] Settings const& settings() const;
 
+  /// Takes the BIOS from `sources` from the next load on, as Settings'
+  /// biosSources. What is loaded runs on undisturbed.
+  void setBiosSources( std::vector<std::filesystem::path> sources );
+
   /// Every region that holds something now, in a stable order.
   [[nodiscard]] std::vector<MemoryRegion> memoryRegions() const;
 

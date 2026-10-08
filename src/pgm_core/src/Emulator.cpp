@@ -55,6 +55,11 @@ Settings const& Emulator::settings() const
   return mSettings;
 }
 
+void Emulator::setBiosSources( std::vector<std::filesystem::path> sources )
+{
+  mSettings.biosSources = std::move( sources );
+}
+
 std::expected<void, LoadFailure> Emulator::loadGameByName( std::string_view name,
                                                            std::optional<std::string_view> region )
 {

@@ -30,9 +30,12 @@ build/release/src/pgm_cli/pgmemu-cli --info roms/orlegend.pgm     # describe an 
 build/release/src/pgm_cli/pgmemu-cli --server --bios ../ROMS/pgm.zip --rom-dir roms
 ```
 
-The control protocol is [docs/spec/control-protocol.md](docs/spec/control-protocol.md).
+In the desktop application a game can also be opened from File > Open, or by dropping its
+`.pgm` onto the window. Started without `--bios`, it takes `pgm.zip` from beside the game, or a
+folder up, or from File > Choose BIOS, and remembers it. The control protocol is
+[docs/spec/control-protocol.md](docs/spec/control-protocol.md).
 
-Games without protection, and orlegend, run with picture and sound. The plan is in
+Every game the MiSTer core supports runs, protection included. The plan is in
 [docs/plans/milestones.md](docs/plans/milestones.md), and the design in
 [docs/architecture.md](docs/architecture.md).
 
