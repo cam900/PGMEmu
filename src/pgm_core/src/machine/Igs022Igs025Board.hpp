@@ -27,7 +27,7 @@ public:
   std::uint16_t read( Time& time, std::uint32_t address, bool upper, bool lower ) override;
   void write( Time& time, std::uint32_t address, std::uint16_t value, bool upper, bool lower ) override;
   [[nodiscard]] std::uint16_t peek( std::uint32_t address ) const override;
-  void reset( Time now ) override;
+  void reset( Time releasedAt ) override;
   void serialize( StateWriter& archive ) override;
   void serialize( StateReader& archive ) override;
 

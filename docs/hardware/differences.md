@@ -24,6 +24,8 @@ makes it true and comes out in the commit that makes it false.
 | VRAM contention | Wait states from `igs023.sv`'s byte-wide state machine, and a wait to the end of the text layer's fetch window. The background's reads of a few dots per tile are not counted. | The same, and the background's reads. | open ([question](../open-questions.md)) |
 | When the picture is read | A line at its start, sprites a frame at a time ([0011](../decisions/0011-video-is-drawn-by-line-and-by-frame.md)). | Dot by dot, sprites as line buffers free. | not planned |
 | A game's region | The one its image holds (ASIC3's default, the IGS025's default, what the ARM's internal ROM holds), or another of the image's, chosen when it is loaded (`emu.load_game`, `emu.set_region`). | ASIC3 always 0, the world; the IGS025 the world for each game; the ARM what its internal ROM holds. Unchosen, the two agree for every image built from the workspace's sets. | — |
+| The IGS027A's ARM | Runs whole instructions, each access one cycle of its clock, and is brought up to the 68000's time when the 68000 reaches the latch or the shared RAM: what the ARM does is seen up to an instruction's cycles early or late. Its writes land at once. | Interleaves with the 68000 a clock at a time; a write lands a cycle after the core makes it; cache misses stall the ARM, which then catches up, and stall the 68000 on the shared RAM. | not planned |
+| The CAVE games' internal ROM | ket, espgal and ddp3 run the program their images hold: PGMBuilder's recreation of the undumped ROM (564 bytes, `crypt/asicsims/type1_cave.c`). | Its MRAs load RetroHQ's recreation (592 bytes), of the same design, its details otherwise. | — |
 | IGS022's timing | Commands run whole when the IGS025 starts them; the 68000's write waits the ticks the RTL's engine would take if every ROM read hit `prot_cache.sv`. The DMA the engine runs at reset is done at once. | The engine's states one a master tick, ROM reads waiting on DDR when they miss; the reset's DMA takes some 8,200 ticks and more. | not planned |
 | ICS2115's sequencing | The voices of a sample period one after another, each when the RTL's sequencer would load it if both its sample reads hit the cache: 24 master ticks apiece. A register write takes effect at once. | The same order, but a voice whose reads miss the cache waits for SDRAM, whose latency the simulator varies, and a write waits a few cycles for the voice it touches to leave the pipeline. A write that lands close to a voice's turn can reach it one sample earlier or later than here. | not planned |
 | ICS2115's status bit 6 | Never set. | Set while a voice write is queued, a few cycles after each. | not planned |
@@ -54,6 +56,9 @@ makes it true and comes out in the commit that makes it false.
   frame 1100, past their start-up exchanges with it and the IGS022 and into their warning
   screens, VRAM, palette RAM and the picture are identical; work RAM is identical in killbld,
   and differs in dead stack only in drgw3.
+- **Knights of Valour Super Heroes:** its game first reaches the IGS027A at frame 762. At frame
+  1100 VRAM, palette RAM and the picture are identical; work RAM differs in dead stack and in five
+  bytes of the game's at 0x81B0C4-0x81B0C9, each 2 lower than the RTL's.
 - **Dead stack:** bytes below the stack pointer hold what interrupts pushed earlier, and differ
   wherever an interrupt arrived at a different instruction. `--ignore` leaves them out; orlegend's
   stack reaches down to 0x81F000, and the BIOS's sound driver's down from 0x3FE1 in the Z80's

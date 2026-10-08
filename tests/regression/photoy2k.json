@@ -1,0 +1,127 @@
+{
+  "description": "Photo Y2K, through its IGS027A of type 1: the attract mode, a coin and a start, and a picture to find differences in.",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "photoy2k"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1200
+      }
+    },
+    {
+      "checkpoint": "title"
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1800
+      }
+    },
+    {
+      "checkpoint": "attract"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "coin"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 420
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "start"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 10
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "start"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 600
+      }
+    },
+    {
+      "checkpoint": "start"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 600
+      }
+    },
+    {
+      "checkpoint": "play"
+    }
+  ],
+  "golden": {
+    "title": {
+      "frame": 1201,
+      "picture": "c07c2253",
+      "work_ram": "d9f1c0f3",
+      "video_ram": "ae80701d",
+      "palette_ram": "91aeb7e1",
+      "audio_ram": "bde83f50",
+      "sound": "902cbe86"
+    },
+    "attract": {
+      "frame": 3001,
+      "picture": "f0ac5a4f",
+      "work_ram": "3a5b4ecd",
+      "video_ram": "7d094af3",
+      "palette_ram": "8a2b715c",
+      "audio_ram": "41d5cfe4",
+      "sound": "857cefe2"
+    },
+    "start": {
+      "frame": 4035,
+      "picture": "3589290a",
+      "work_ram": "657d433a",
+      "video_ram": "d69873b7",
+      "palette_ram": "095cb806",
+      "audio_ram": "7c87d1a9",
+      "sound": "baec5835"
+    },
+    "play": {
+      "frame": 4639,
+      "picture": "87ee46c4",
+      "work_ram": "9e8dd93b",
+      "video_ram": "d69873b7",
+      "palette_ram": "eb47cebc",
+      "audio_ram": "001e4b41",
+      "sound": "37aefe87"
+    }
+  }
+}

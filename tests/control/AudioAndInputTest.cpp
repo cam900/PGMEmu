@@ -98,7 +98,8 @@ TEST_CASE( "cpu.get_state answers the Z80's registers for cpu z80", "[control]" 
   REQUIRE( state.at( "pc" ) == 0 );
   REQUIRE( state.at( "sp" ) == 0 );
   REQUIRE( state.at( "halted" ) == false );
-  REQUIRE( errorCode( call( dispatcher, "cpu.get_state", { { "cpu", "arm7" } } ) ) == "bad_request" );
+  REQUIRE( errorCode( call( dispatcher, "cpu.get_state", { { "cpu", "arm7" } } ) ) == "no_cpu" );
+  REQUIRE( errorCode( call( dispatcher, "cpu.get_state", { { "cpu", "6502" } } ) ) == "bad_request" );
 }
 
 TEST_CASE( "state.save and state.load take the machine back to where it was saved", "[control]" )

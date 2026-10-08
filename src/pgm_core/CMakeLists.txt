@@ -30,6 +30,7 @@ add_library( pgm_core
   src/machine/Igs022Igs025Board.cpp
   src/machine/Igs023.cpp
   src/machine/Igs025.cpp
+  src/machine/Igs027a.cpp
   src/machine/Igs026.cpp
   src/machine/M68k.cpp
   src/machine/Machine.cpp

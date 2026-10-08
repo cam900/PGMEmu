@@ -31,6 +31,21 @@ struct M68kState
   bool halted{};
 };
 
+/// The IGS027A's ARM7TDMI, as the debugger shows it.
+struct Arm7Registers
+{
+  /// R0 to R15 as its current mode sees them; R15 is the pipeline's, 8 or 4
+  /// past `pc`.
+  std::array<std::uint32_t, 16> r{};
+  std::uint32_t cpsr{};
+  /// The current mode's SPSR; 0 in user and system modes, which have none.
+  std::uint32_t spsr{};
+  /// The address of the instruction it executes next.
+  std::uint32_t pc{};
+  bool fiq{};
+  std::int64_t cycles{};
+};
+
 /// Why a run returned.
 enum class StopReason : std::uint8_t
 {
@@ -178,6 +193,12 @@ public:
   /// caught the sound side up.
   [[nodiscard]] Z80Registers z80Registers() const;
   [[nodiscard]] bool z80Halted() const;
+  /// The ARM7TDMI's registers, as of the last time the 68000 or the end of a
+  /// run caught it up; nothing on a board without one.
+  [[nodiscard]] std::optional<Arm7Registers> arm7Registers() const;
+  /// The ARM instruction at `address`, Thumb's when `thumb`, and its length in
+  /// bytes; nothing on a board without an ARM7TDMI.
+  [[nodiscard]] std::optional<std::string> disassembleArm7( std::uint32_t address, bool thumb, int& length ) const;
   /// The instruction at `address`, and its length in bytes.
   [[nodiscard]] std::string disassemble( std::uint32_t address, int& length ) const;
   /// The word at `address` as the 68000 would read it from ROM or work RAM, or

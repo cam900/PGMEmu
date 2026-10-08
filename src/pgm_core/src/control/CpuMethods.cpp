@@ -78,45 +78,126 @@ Json z80StateOf( machine::Machine const& machine )
                { "halted", machine.z80Halted() } };
 }
 
+std::string_view modeName( std::uint32_t cpsr )
+{
+  switch ( cpsr & 0x1fU )
+  {
+  case 0x10:
+    return "user";
+  case 0x11:
+    return "fiq";
+  case 0x12:
+    return "irq";
+  case 0x13:
+    return "supervisor";
+  case 0x17:
+    return "abort";
+  case 0x1b:
+    return "undefined";
+  case 0x1f:
+    return "system";
+  default:
+    return "invalid";
+  }
+}
+
+Error noArm7()
+{
+  return Error{ .code = "no_cpu", .message = "The loaded board has no ARM7: it has no IGS027A" };
+}
+
+std::expected<Json, Error> arm7StateOf( machine::Machine const& machine )
+{
+  auto const registers = machine.arm7Registers();
+  if ( !registers )
+  {
+    return std::unexpected( noArm7() );
+  }
+  bool const thumb = ( registers->cpsr & 0x20U ) != 0;
+  int length = 0;
+  return Json{ { "pc", registers->pc },
+               { "r", registers->r },
+               { "cpsr", registers->cpsr },
+               { "spsr", registers->spsr },
+               { "mode", modeName( registers->cpsr ) },
+               { "thumb", thumb },
+               { "fiq", registers->fiq },
+               { "cycles", registers->cycles },
+               { "disasm", machine.disassembleArm7( registers->pc, thumb, length ).value_or( "" ) } };
+}
+
+/// Which CPU `params` name: m68k when they name none.
+std::expected<std::string, Error> cpuOf( Json const& params )
+{
+  if ( !params.contains( "cpu" ) )
+  {
+    return std::string{ "m68k" };
+  }
+  auto cpu = requireString( params, "cpu" );
+  if ( cpu && *cpu != "m68k" && *cpu != "z80" && *cpu != "arm7" )
+  {
+    return std::unexpected( badRequest( fmt::format( "cpu is m68k, z80 or arm7, not {}", *cpu ) ) );
+  }
+  return cpu;
+}
+
 } // namespace
 
 void addCpuMethods( Dispatcher& dispatcher, Emulator& emulator )
 {
   dispatcher.add(
       "cpu.get_state",
-      info( "A CPU's registers: the 68000's, with the instruction at its PC, or the Z80's.",
-            { { .name = "cpu", .type = "string", .description = "m68k (the default) or z80.", .required = false } } ),
+      info( "A CPU's registers: the 68000's or the IGS027A's ARM7, with the instruction at its PC, or the Z80's.",
+            { { .name = "cpu",
+                .type = "string",
+                .description = "m68k (the default), z80 or arm7.",
+                .required = false } } ),
       [&emulator]( Json const& params ) -> Outcome
       {
         auto const machine = loadedMachine( emulator );
-        if ( !machine )
+        auto const cpu = cpuOf( params );
+        if ( !machine || !cpu )
         {
-          return std::unexpected( machine.error() );
+          return std::unexpected( !machine ? machine.error() : cpu.error() );
         }
-        if ( params.contains( "cpu" ) && params.at( "cpu" ) == "z80" )
+        if ( *cpu == "z80" )
         {
           return z80StateOf( **machine );
         }
-        if ( params.contains( "cpu" ) && params.at( "cpu" ) != "m68k" )
+        if ( *cpu == "arm7" )
         {
-          return std::unexpected( badRequest( "The cpu is m68k or z80; the ARM7 is not emulated yet" ) );
+          return arm7StateOf( **machine );
         }
         return stateOf( **machine );
       } );
 
   dispatcher.add(
       "cpu.disassemble",
-      info( "Disassembles 68000 instructions from an address.",
+      info( "Disassembles 68000 or ARM7 instructions from an address.",
             { { .name = "address", .type = "integer", .description = "Where to start." },
-              { .name = "count", .type = "integer", .description = "How many instructions, at most 1000." } } ),
+              { .name = "count", .type = "integer", .description = "How many instructions, at most 1000." },
+              { .name = "cpu", .type = "string", .description = "m68k (the default) or arm7.", .required = false },
+              { .name = "thumb",
+                .type = "boolean",
+                .description = "ARM7: Thumb rather than ARM instructions; the ARM7's own state if left out.",
+                .required = false } } ),
       [&emulator]( Json const& params ) -> Outcome
       {
         auto const machine = loadedMachine( emulator );
         auto const address = requireUnsigned( params, "address" );
         auto const count = requireUnsigned( params, "count" );
+        auto const cpu = cpuOf( params );
         if ( !machine )
         {
           return std::unexpected( machine.error() );
+        }
+        if ( !cpu )
+        {
+          return std::unexpected( cpu.error() );
+        }
+        if ( *cpu == "z80" )
+        {
+          return std::unexpected( badRequest( "The Z80 has no disassembler here; cpu is m68k or arm7" ) );
         }
         if ( !address )
         {
@@ -132,10 +213,21 @@ void addCpuMethods( Dispatcher& dispatcher, Emulator& emulator )
         }
         Json lines = Json::array();
         auto at = static_cast<std::uint32_t>( *address );
+        bool thumb = false;
+        if ( *cpu == "arm7" )
+        {
+          auto const registers = ( *machine )->arm7Registers();
+          if ( !registers )
+          {
+            return std::unexpected( noArm7() );
+          }
+          thumb = params.contains( "thumb" ) ? params.at( "thumb" ) == true : ( registers->cpsr & 0x20U ) != 0;
+        }
         for ( std::uint64_t i = 0; i < *count; ++i )
         {
           int length = 0;
-          std::string text = ( *machine )->disassemble( at, length );
+          std::string text = *cpu == "arm7" ? ( *machine )->disassembleArm7( at, thumb, length ).value_or( "" )
+                                            : ( *machine )->disassemble( at, length );
           lines.push_back( Json{ { "address", at }, { "length", length }, { "text", std::move( text ) } } );
           at += static_cast<std::uint32_t>( length > 0 ? length : 2 );
         }

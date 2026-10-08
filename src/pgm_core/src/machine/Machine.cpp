@@ -6,9 +6,11 @@
 #include "Ics2115.hpp"
 #include "Igs023.hpp"
 #include "Igs026.hpp"
+#include "Igs027a.hpp"
 #include "M68k.hpp"
 #include "StateArchive.hpp"
 #include "Z80.hpp"
+#include "cpu/Arm7Disassembler.hpp"
 
 #include <algorithm>
 #include <optional>
@@ -303,7 +305,7 @@ Machine::Machine( cart::Bios const& bios, cart::PgmImage const* cartridge, std::
   mParts->resetReleasedAt = POWER_ON_RESET_TICKS * UNITS_PER_MASTER_TICK;
   if ( mParts->protection )
   {
-    mParts->protection->reset( 0 );
+    mParts->protection->reset( mParts->resetReleasedAt );
   }
 }
 
@@ -316,11 +318,11 @@ void Machine::reset( std::int64_t masterTicks )
   parts.io.reset( parts.now );
   parts.video.reset();
   parts.asic3.reset();
+  parts.now += masterTicks * UNITS_PER_MASTER_TICK;
   if ( parts.protection )
   {
     parts.protection->reset( parts.now );
   }
-  parts.now += masterTicks * UNITS_PER_MASTER_TICK;
   parts.video.advanceTo( parts.now );
   parts.resetReleasedAt = parts.now;
   parts.cpuStarted = false;
@@ -621,6 +623,65 @@ std::array<Ics2115Voice, 32> const& Machine::ics2115Voices() const
 std::size_t Machine::ics2115ActiveVoices() const
 {
   return mParts->ics2115.activeVoices();
+}
+
+std::optional<Arm7Registers> Machine::arm7Registers() const
+{
+  Igs027a const* const chip = mParts->protection ? mParts->protection->igs027a() : nullptr;
+  if ( chip == nullptr )
+  {
+    return std::nullopt;
+  }
+  cpu::Arm7 const& arm = chip->arm();
+  cpu::Arm7State const& state = arm.state();
+  Arm7Registers registers;
+  for ( unsigned i = 0; i < 16; ++i )
+  {
+    registers.r.at( i ) = arm.reg( i );
+  }
+  registers.cpsr = state.cpsr;
+  switch ( state.cpsr & cpu::Arm7::MODE_MASK )
+  {
+  case cpu::Arm7::MODE_FIQ:
+    registers.spsr = state.spsr[0];
+    break;
+  case cpu::Arm7::MODE_SUPERVISOR:
+    registers.spsr = state.spsr[1];
+    break;
+  case cpu::Arm7::MODE_ABORT:
+    registers.spsr = state.spsr[2];
+    break;
+  case cpu::Arm7::MODE_IRQ:
+    registers.spsr = state.spsr[3];
+    break;
+  case cpu::Arm7::MODE_UNDEFINED:
+    registers.spsr = state.spsr[4];
+    break;
+  default:
+    break;
+  }
+  registers.pc = arm.pc();
+  registers.fiq = state.fiqLine;
+  registers.cycles = state.cycles;
+  return registers;
+}
+
+std::optional<std::string> Machine::disassembleArm7( std::uint32_t address, bool thumb, int& length ) const
+{
+  Igs027a const* const chip = mParts->protection ? mParts->protection->igs027a() : nullptr;
+  if ( chip == nullptr )
+  {
+    return std::nullopt;
+  }
+  if ( thumb )
+  {
+    length = 2;
+    return cpu::disassembleThumb( address,
+                                  static_cast<std::uint16_t>( chip->peekArm( address, 2 ) ),
+                                  static_cast<std::uint16_t>( chip->peekArm( address + 2, 2 ) ) );
+  }
+  length = 4;
+  return cpu::disassembleArm( address, chip->peekArm( address, 4 ) );
 }
 
 std::span<std::uint8_t const> Machine::z80Ram() const

@@ -19,6 +19,7 @@ add_executable( pgm_tests
   machine/Igs023DrawTest.cpp
   machine/Igs023Test.cpp
   machine/Igs026Test.cpp
+  machine/Igs027aTest.cpp
   machine/MachineTest.cpp
   machine/SpriteEngineTest.cpp
   machine/V3021Test.cpp

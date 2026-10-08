@@ -56,7 +56,7 @@ result as JSON; an error goes to stderr with exit status 1. Numbers in answers a
 | Stop at code | `debug.breakpoint.add/remove/list {address}`: a run stops before that instruction |
 | Stop at data | `debug.watchpoint.add {address, size, access: read/write/access}`: a run stops after the instruction, and its answer says what was accessed and from where |
 | See what ran | `debug.trace {count}`: the last instructions, with disassembly |
-| CPUs | `cpu.get_state` (68000), `cpu.get_state {cpu: z80}`, `cpu.disassemble {address, count}` |
+| CPUs | `cpu.get_state` (68000), `cpu.get_state {cpu: z80}`, `cpu.get_state {cpu: arm7}` (the IGS027A's), `cpu.disassemble {address, count, cpu}` |
 | Memory | `memory.list_regions`, `memory.read {region, address, size}` (WORK_RAM is 0x800000-0x81FFFF, in 68000 byte order) |
 | Picture | `video.screenshot {path}`, `video.sprites`, `video.registers`, `video.layers {text, background, sprites}`, `video.tiles {layer, first, count, palette, path}`, `video.tilemap {layer, path}` |
 | Sound | `audio.voices`, `audio.capture_start {path}` / `audio.capture_stop` (a WAV) |

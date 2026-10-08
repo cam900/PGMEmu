@@ -89,6 +89,7 @@ A request that failed:
 | `not_loaded` | The method needs a running machine, and no game is loaded. |
 | `screenshot_failed` | The picture could not be encoded or written. |
 | `invalid_signal` | A condition names a signal the emulator does not have (§6, `emu.run_until`). |
+| `no_cpu` | The CPU asked for is not on the loaded board: the ARM7 of a game without an IGS027A. |
 | `invalid_region` | No memory region of that name holds anything now. |
 | `invalid_range` | The bytes asked for run past the end of the region. |
 | `capture_running` | `audio.capture_start` while a capture is running. |
@@ -102,7 +103,7 @@ A request that failed:
 
 `unknown_method`, `unknown_game`, `load_failed`, `invalid_region`, `invalid_signal`,
 `invalid_input` and `bad_request` mean what the simulator means by them. `no_cartridge`, `not_loaded`,
-`invalid_range`, `unknown_region` and the `capture_` codes are the emulator's own: the simulator does not check a
+`invalid_range`, `unknown_region`, `no_cpu` and the `capture_` codes are the emulator's own: the simulator does not check a
 range, always has a machine, and captures sound by other methods (§6, `audio.capture_start`).
 
 ## 5. Names shared with the simulator
@@ -324,7 +325,7 @@ Errors: `not_loaded`, `invalid_signal`, `bad_request`.
 
 ### `cpu.get_state`
 
-Takes no parameters, or `cpu`: `m68k`, the default, or `z80`. The ARM7 is not emulated yet.
+Takes no parameters, or `cpu`: `m68k`, the default, `z80`, or `arm7` for the IGS027A's ARM7TDMI.
 
 ```json
 {"id":5,"ok":true,"result":{"pc":4166,"registers":[0,4294967295,"..."],"disasm":"move.l  D2, -(A7)",
@@ -350,7 +351,23 @@ whether it is in a HALT. They are as of the last time the sound side was brought
   "af_":65535,"bc_":0,"de_":0,"hl_":0,"wz":0,"i":0,"r":17,"im":1,"iff1":true,"iff2":true,"halted":false}}
 ```
 
-Errors: `not_loaded`, `bad_request`.
+For the ARM7, as of the last time it was brought up to the 68000's time:
+
+```json
+{"id":5,"ok":true,"result":{"pc":460,"r":[268435495,0,"...",468],"cpsr":1610612755,"spsr":0,
+  "mode":"supervisor","thumb":false,"fiq":false,"cycles":303790052,"disasm":"bl 0x00001438"}}
+```
+
+| Field | Meaning |
+|---|---|
+| `pc` | The address of the instruction it executes next. |
+| `r` | R0 to R15 as its mode sees them; R15 is the pipeline's, 8 (ARM) or 4 (Thumb) past `pc`. |
+| `cpsr`, `spsr` | The status registers; `spsr` is 0 in user and system modes, which have none. |
+| `mode`, `thumb` | The mode's name (`user`, `fiq`, `irq`, `supervisor`, `abort`, `undefined`, `system`) and the instruction set. |
+| `fiq` | Whether the FIQ line is up. |
+| `cycles` | Its clock's cycles since its reset. |
+
+Errors: `not_loaded`, `no_cpu`, `bad_request`.
 
 ### `cpu.disassemble`
 
@@ -358,11 +375,13 @@ Errors: `not_loaded`, `bad_request`.
 |---|---|
 | `address` | Where to start. |
 | `count` | Instructions to disassemble, at most 1000. |
+| `cpu` | `m68k`, the default, or `arm7`. |
+| `thumb` | For the ARM7: Thumb instructions rather than ARM; if left out, the set it is in. |
 
-Answers an array of `{"address", "length", "text"}`, one per instruction, read as the 68000
-would read them without clocking any device.
+Answers an array of `{"address", "length", "text"}`, one per instruction, read as the CPU would
+read them, without clocking any device or setting off what reading some of them does.
 
-Errors: `not_loaded`, `bad_request`.
+Errors: `not_loaded`, `no_cpu`, `bad_request`.
 
 ### `debug.breakpoint.add`, `debug.breakpoint.remove`
 

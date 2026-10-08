@@ -21,10 +21,8 @@ a screen. That is why the control API and the headless runner come before most o
 
 *Delivers,* in order:
 
-1. `Igs027a` type 1: kovsh and photoy2k, then ket, espgal and ddp3. An ASIC27 game's region is
-   patched into its internal ROM ([pgm-format.md §4](../spec/pgm-format.md)).
-2. Type 2: kov2, kov2p, ddp2, martmast, dw2001, dwpc.
-3. Type 3: dmnfrnt, theglad, svg, killbldp, happy6.
+1. `Igs027a` type 2: kov2, kov2p, ddp2, martmast, dw2001, dwpc.
+2. Type 3: dmnfrnt, theglad, svg, killbldp, happy6.
 
 *Exit:* every game the MiSTer README lists as supported reaches gameplay, and its golden frames
 are recorded.

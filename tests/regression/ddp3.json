@@ -1,0 +1,163 @@
+{
+  "description": "DoDonPachi III, through its IGS027A of type 1 and the recreated internal ROM: the title, the demonstration, a coin and a start, and a few seconds of play.",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "ddp3"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1500
+      }
+    },
+    {
+      "checkpoint": "title"
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1500
+      }
+    },
+    {
+      "checkpoint": "demonstration"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "coin"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "start"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 300
+      }
+    },
+    {
+      "checkpoint": "start"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 240
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 240
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "up"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 60
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "up"
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "checkpoint": "play"
+    }
+  ],
+  "golden": {
+    "title": {
+      "frame": 1501,
+      "picture": "a8d4374e",
+      "work_ram": "9b767a3c",
+      "video_ram": "e014a233",
+      "palette_ram": "a5faeab3",
+      "audio_ram": "d7dc27f2",
+      "sound": "83c7e7e6"
+    },
+    "demonstration": {
+      "frame": 3001,
+      "picture": "41d46542",
+      "work_ram": "a0d4773b",
+      "video_ram": "6735f2df",
+      "palette_ram": "0e48822d",
+      "audio_ram": "e1c935f4",
+      "sound": "8fa9171b"
+    },
+    "start": {
+      "frame": 3429,
+      "picture": "73d6a35d",
+      "work_ram": "ccde3acb",
+      "video_ram": "7e263e55",
+      "palette_ram": "503a2c79",
+      "audio_ram": "b276a8ec",
+      "sound": "145d9bc7"
+    },
+    "play": {
+      "frame": 4097,
+      "picture": "693c2718",
+      "work_ram": "691b0f7a",
+      "video_ram": "c31bf670",
+      "palette_ram": "f6b56676",
+      "audio_ram": "57080962",
+      "sound": "1b1995fd"
+    }
+  }
+}

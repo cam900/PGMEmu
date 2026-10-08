@@ -1,0 +1,169 @@
+{
+  "description": "Knights of Valour Super Heroes, through its IGS027A of type 1: the attract mode, a coin and a start, and a few seconds of play.",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "kovsh"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1200
+      }
+    },
+    {
+      "checkpoint": "title"
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1800
+      }
+    },
+    {
+      "checkpoint": "attract"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "coin"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "start"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 300
+      }
+    },
+    {
+      "checkpoint": "start"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 600
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "right"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 90
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "right"
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 30
+      }
+    },
+    {
+      "checkpoint": "play"
+    }
+  ],
+  "golden": {
+    "title": {
+      "frame": 1201,
+      "picture": "db10bb3f",
+      "work_ram": "50f9e70f",
+      "video_ram": "011ffca6",
+      "palette_ram": "05bee353",
+      "audio_ram": "2afa1f78",
+      "sound": "5845b87e"
+    },
+    "attract": {
+      "frame": 3001,
+      "picture": "2e4e1b8e",
+      "work_ram": "9e8cd382",
+      "video_ram": "69a80f7c",
+      "palette_ram": "128fd0a5",
+      "audio_ram": "d8b6f7c2",
+      "sound": "07554abc"
+    },
+    "start": {
+      "frame": 3429,
+      "picture": "9985bb66",
+      "work_ram": "055e9a4e",
+      "video_ram": "f4c9c3a3",
+      "palette_ram": "bd400d58",
+      "audio_ram": "8b57b61c",
+      "sound": "7f78bfb6"
+    },
+    "play": {
+      "frame": 4405,
+      "picture": "388b88a3",
+      "work_ram": "9eb14154",
+      "video_ram": "88a950d4",
+      "palette_ram": "7a043976",
+      "audio_ram": "33cda23b",
+      "sound": "8ead808d"
+    }
+  }
+}

@@ -63,7 +63,7 @@ std::uint16_t Igs022Igs025Board::peek( std::uint32_t address ) const
   return mIgs022.read( ( address & ~IGS022_RAM_MASK ) >> 1U );
 }
 
-void Igs022Igs025Board::reset( Time /*now*/ )
+void Igs022Igs025Board::reset( Time /*releasedAt*/ )
 {
   mIgs025.reset();
   mIgs022.reset();

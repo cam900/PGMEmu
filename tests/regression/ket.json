@@ -1,0 +1,163 @@
+{
+  "description": "Ketsui, through its IGS027A of type 1 and the recreated internal ROM: the title, the demonstration, a coin and a start, and a few seconds of play.",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "ket"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1500
+      }
+    },
+    {
+      "checkpoint": "title"
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1500
+      }
+    },
+    {
+      "checkpoint": "demonstration"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "coin"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "start"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 300
+      }
+    },
+    {
+      "checkpoint": "start"
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 240
+      }
+    },
+    {
+      "method": "input.press",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 240
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "up"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 60
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "up"
+      }
+    },
+    {
+      "method": "input.set",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 120
+      }
+    },
+    {
+      "method": "input.clear",
+      "params": {
+        "name": "button1"
+      }
+    },
+    {
+      "checkpoint": "play"
+    }
+  ],
+  "golden": {
+    "title": {
+      "frame": 1501,
+      "picture": "73b6acce",
+      "work_ram": "289a484a",
+      "video_ram": "ef8d3016",
+      "palette_ram": "a122f2d0",
+      "audio_ram": "d0cbb60e",
+      "sound": "889e07be"
+    },
+    "demonstration": {
+      "frame": 3001,
+      "picture": "664edf6b",
+      "work_ram": "3060af13",
+      "video_ram": "6e5c2044",
+      "palette_ram": "4d4afd3b",
+      "audio_ram": "57e5e4e3",
+      "sound": "8fa9171b"
+    },
+    "start": {
+      "frame": 3429,
+      "picture": "ef6ae084",
+      "work_ram": "4e2d14c4",
+      "video_ram": "340629df",
+      "palette_ram": "622684fd",
+      "audio_ram": "1d6a88bc",
+      "sound": "1f0a5f28"
+    },
+    "play": {
+      "frame": 4097,
+      "picture": "dd45760d",
+      "work_ram": "85acc8d3",
+      "video_ram": "ea6304b9",
+      "palette_ram": "4b61a884",
+      "audio_ram": "7c01ee33",
+      "sound": "7de24480"
+    }
+  }
+}

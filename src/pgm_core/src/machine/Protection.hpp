@@ -16,6 +16,8 @@
 namespace pgm::machine
 {
 
+class Igs027a;
+
 class Protection
 {
 public:
@@ -42,11 +44,17 @@ public:
   /// A read for the debugger: no chip is clocked by it.
   [[nodiscard]] virtual std::uint16_t peek( std::uint32_t address ) const = 0;
 
-  /// The board's reset line, at `now`.
-  virtual void reset( Time now ) = 0;
+  /// The board's reset, its line let go at `releasedAt`.
+  virtual void reset( Time releasedAt ) = 0;
 
   /// Brings chips that run on their own clock up to `now`.
   virtual void advanceTo( Time /*now*/ ) {}
+
+  /// The board's IGS027A, for the debugger; null on boards without one.
+  [[nodiscard]] virtual Igs027a const* igs027a() const
+  {
+    return nullptr;
+  }
 
   /// Names its state for a save state (StateArchive.hpp), in each direction.
   virtual void serialize( StateWriter& archive ) = 0;
