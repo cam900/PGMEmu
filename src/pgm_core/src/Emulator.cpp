@@ -55,7 +55,8 @@ Settings const& Emulator::settings() const
   return mSettings;
 }
 
-std::expected<void, LoadFailure> Emulator::loadGameByName( std::string_view name )
+std::expected<void, LoadFailure> Emulator::loadGameByName( std::string_view name,
+                                                           std::optional<std::string_view> region )
 {
   if ( !isSetName( name ) )
   {
@@ -64,12 +65,17 @@ std::expected<void, LoadFailure> Emulator::loadGameByName( std::string_view name
   }
   if ( name == BIOS_ONLY )
   {
+    if ( region )
+    {
+      return std::unexpected( LoadFailure{ .kind = LoadFailure::Kind::UNKNOWN_REGION,
+                                           .message = "the BIOS alone has no regions to choose from" } );
+    }
     auto bios = loadBios();
     if ( !bios )
     {
       return std::unexpected( bios.error() );
     }
-    install( std::move( *bios ), std::nullopt );
+    install( std::move( *bios ), std::nullopt, std::nullopt );
     return {};
   }
 
@@ -81,32 +87,98 @@ std::expected<void, LoadFailure> Emulator::loadGameByName( std::string_view name
         LoadFailure{ .kind = LoadFailure::Kind::UNKNOWN_GAME,
                      .message = fmt::format( "no {}.pgm in {}", name, mSettings.romDirectory.string() ) } );
   }
-  return loadGameFromFile( path );
+  return loadGameFromFile( path, region );
 }
 
-std::expected<void, LoadFailure> Emulator::loadGameFromFile( std::filesystem::path const& path )
+std::expected<void, LoadFailure> Emulator::loadGameFromFile( std::filesystem::path const& path,
+                                                             std::optional<std::string_view> region )
 {
   auto cartridge = cart::PgmImage::read( path );
   if ( !cartridge )
   {
     return std::unexpected( loadFailed( fmt::format( "{}: {}", path.string(), cartridge.error() ) ) );
   }
+  std::optional<std::uint32_t> agnosticId;
+  if ( region )
+  {
+    auto const chosen = chooseRegion( *cartridge, *region );
+    if ( !chosen )
+    {
+      return std::unexpected( chosen.error() );
+    }
+    agnosticId = *chosen;
+  }
   auto bios = loadBios();
   if ( !bios )
   {
     return std::unexpected( bios.error() );
   }
-  install( std::move( *bios ), std::move( *cartridge ) );
+  install( std::move( *bios ), std::move( *cartridge ), agnosticId );
   return {};
 }
 
-void Emulator::install( cart::Bios bios, std::optional<cart::PgmImage> cartridge )
+std::expected<void, LoadFailure> Emulator::setRegion( std::string_view region )
+{
+  if ( !mCartridge )
+  {
+    return std::unexpected(
+        LoadFailure{ .kind = LoadFailure::Kind::UNKNOWN_REGION,
+                     .message = mBios ? "the BIOS alone has no regions to choose from" : "no game is loaded" } );
+  }
+  auto const chosen = chooseRegion( *mCartridge, region );
+  if ( !chosen )
+  {
+    return std::unexpected( chosen.error() );
+  }
+  mRegion = *chosen;
+  powerUp();
+  return {};
+}
+
+std::expected<std::uint32_t, LoadFailure> Emulator::chooseRegion( cart::PgmImage const& cartridge,
+                                                                  std::string_view region )
+{
+  auto const agnosticId = cart::agnosticIdOf( region );
+  if ( !agnosticId )
+  {
+    return std::unexpected(
+        LoadFailure{ .kind = LoadFailure::Kind::UNKNOWN_REGION,
+                     .message = fmt::format( "'{}' is not a four-character region code", region ) } );
+  }
+  if ( auto const value = cartridge.regionValue( *agnosticId ); !value )
+  {
+    return std::unexpected( LoadFailure{ .kind = LoadFailure::Kind::UNKNOWN_REGION, .message = value.error() } );
+  }
+  return *agnosticId;
+}
+
+void Emulator::install( cart::Bios bios, std::optional<cart::PgmImage> cartridge, std::optional<std::uint32_t> region )
 {
   // The machine reads the ROMs in place, so it goes before they are replaced.
   mMachine.reset();
   mBios = std::move( bios );
   mCartridge = std::move( cartridge );
-  mMachine = std::make_unique<machine::Machine>( *mBios, mCartridge ? &*mCartridge : nullptr );
+  mRegion = region;
+  powerUp();
+}
+
+void Emulator::powerUp()
+{
+  mMachine.reset();
+  if ( !mBios )
+  {
+    return;
+  }
+  // A chosen region was checked against the cartridge when it was chosen.
+  std::optional<std::uint32_t> value;
+  if ( mCartridge && mRegion )
+  {
+    if ( auto const chosen = mCartridge->regionValue( *mRegion ) )
+    {
+      value = *chosen;
+    }
+  }
+  mMachine = std::make_unique<machine::Machine>( *mBios, mCartridge ? &*mCartridge : nullptr, value );
 }
 
 machine::Machine* Emulator::machine()
@@ -130,6 +202,30 @@ std::optional<std::string> Emulator::gameName() const
     return std::string{ BIOS_ONLY };
   }
   return std::nullopt;
+}
+
+std::optional<std::string> Emulator::region() const
+{
+  if ( !mCartridge || !mCartridge->regionInfo() )
+  {
+    return std::nullopt;
+  }
+  if ( mRegion )
+  {
+    return cart::fourCc( *mRegion );
+  }
+  auto const own = mCartridge->ownRegion();
+  if ( !own )
+  {
+    return std::nullopt;
+  }
+  auto const& regions = mCartridge->regionInfo()->regions;
+  auto const region = std::ranges::find( regions, *own, &cart::Region::regionId );
+  if ( region == regions.end() )
+  {
+    return std::nullopt;
+  }
+  return cart::fourCc( region->agnosticId );
 }
 
 cart::Bios const* Emulator::bios() const

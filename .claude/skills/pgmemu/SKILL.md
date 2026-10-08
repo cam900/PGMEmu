@@ -50,7 +50,8 @@ result as JSON; an error goes to stderr with exit status 1. Numbers in answers a
 
 | To | Methods |
 |---|---|
-| Load, reset, see where it is | `emu.load_game`, `emu.reset {cycles: 100}`, `emu.status`, `emu.cartridge_info` |
+| Load, reset, see where it is | `emu.load_game {name, region}`, `emu.reset {cycles: 100}`, `emu.status`, `emu.cartridge_info` |
+| Region | `emu.set_region {region}`: a code from `emu.cartridge_info`'s `region_info`, such as `JAPN`; powers up anew |
 | Run | `emu.run_frames {count}` (60 is a second), `emu.run_cycles {count}` (50 MHz master ticks), `emu.run_until {condition, timeout_cycles}` |
 | Stop at code | `debug.breakpoint.add/remove/list {address}`: a run stops before that instruction |
 | Stop at data | `debug.watchpoint.add {address, size, access: read/write/access}`: a run stops after the instruction, and its answer says what was accessed and from where |

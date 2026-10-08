@@ -82,7 +82,7 @@ decision, not the reader's.
 | 6 | SPC | `sprcol` | Sprite colours (A-ROM) |
 | 7 | AUD | `ics` | ICS2115 samples |
 | 8 | I22 | `igs022` / `igs028` | Protection data ROM |
-| 9 | I25 | none | IGS025 settings, PGMBuilder's own block (`CustomData.cpp`): variant, default region, then per region a code, a 4-byte game id and a 0xEC-byte table |
+| 9 | I25 | none | IGS025 settings, PGMBuilder's own block (§3.1) |
 
 **Byte order.** Every ROM is stored as its files hold it, assembled into one block per type in
 MAME's layout: byte-interleaved pairs are interleaved, and files loaded one after another are
@@ -99,6 +99,24 @@ order as the BIOS program `pgm_p02s.u20`. The 68k word at byte address `2n` of t
 
 Entries may come in any order. PGMBuilder writes PRG, INT, EXT, TLE, SPC, SPM, AUD, I22, I25,
 leaving out the types a game does not have.
+
+### 3.1 The I25 block
+
+What an IGS025 answers, which on the board is inside the chip. PGMBuilder writes it from its
+`CustomData.cpp`, and its tables are those the RTL builds in (`igs025_src_tables.sv`):
+
+| Offset | Size | Field |
+|---|---|---|
+| 0 | 1 | variant: 0 Dragon World 2, 1 Dragon World 3, 2 The Killing Blade, 3 Oriental Legend Super |
+| 1 | 1 | default region: the region value the game runs as unless told otherwise |
+| 2 | 1 | count: number of tables |
+| 3 | 241 × count | the tables, one per region |
+
+A table is a region value (1 byte), the game id the chip reports (4 bytes, the first the most
+significant) and the 0xEC bytes the chip hands out one at a time. The reader refuses a block whose
+size is not that of its tables. A region value named by more than one table is the first's: drgw3's
+block names 6 twice, its Singapore table carrying World's value in `CustomData.cpp`, so
+that Singapore cannot be chosen.
 
 ## 4. The region block
 
@@ -118,8 +136,8 @@ multiple of 4 bytes.
 
 | Type | Offset | Size | Field |
 |---|---|---|---|
-| ASIC27 | 4 | 2 | patchType: 0 means the region is a big-endian 16-bit word patched into the program |
-| ASIC27 | 6 | 2 | patchOffset: where in the program it is patched |
+| ASIC27 | 4 | 2 | patchType: how the IGS027A's internal ROM holds the region, 0 a big-endian 16-bit word and 1 a byte; anything else is refused |
+| ASIC27 | 6 | 2 | patchOffset: where in the internal ROM it is held |
 | ASIC3 | 4 | 4 | defaultRegion: the region the game runs as unless told otherwise |
 
 ### 4.3 The table

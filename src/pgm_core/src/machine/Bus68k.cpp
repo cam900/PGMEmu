@@ -21,13 +21,29 @@ std::uint16_t RomSpace::word( std::uint32_t address ) const
 
 Bus68k::Bus68k( RomSpace rom, BusDevices devices, Time& time, std::span<std::uint8_t> workRam )
     : mRom{ rom }, mVideo{ devices.video }, mIo{ devices.io }, mAsic3{ devices.asic3 }, mInputs{ devices.inputs },
-      mTime{ time }, mWorkRam{ workRam }
+      mProtection{ devices.protection }, mTime{ time }, mWorkRam{ workRam }
 {
+  if ( mProtection != nullptr )
+  {
+    for ( std::uint8_t const page : mProtection->pages() )
+    {
+      mProtectionPages.at( page ) = true;
+    }
+  }
+}
+
+bool Bus68k::isProtection( std::uint32_t address ) const
+{
+  return mProtectionPages[address >> 16U] && mProtection->decodes( address );
 }
 
 std::uint16_t Bus68k::read( std::uint32_t address, bool upper, bool lower )
 {
   address &= ADDRESS_MASK;
+  if ( isProtection( address ) )
+  {
+    return mProtection->read( mTime, address, upper, lower );
+  }
   switch ( address >> 20U )
   {
   case 0x0:
@@ -79,6 +95,11 @@ std::uint16_t Bus68k::read( std::uint32_t address, bool upper, bool lower )
 void Bus68k::write( std::uint32_t address, std::uint16_t value, bool upper, bool lower )
 {
   address &= ADDRESS_MASK;
+  if ( isProtection( address ) )
+  {
+    mProtection->write( mTime, address, value, upper, lower );
+    return;
+  }
   switch ( address >> 20U )
   {
   case 0x8:
@@ -127,6 +148,10 @@ void Bus68k::write( std::uint32_t address, std::uint16_t value, bool upper, bool
 std::uint16_t Bus68k::peek( std::uint32_t address ) const
 {
   address &= ADDRESS_MASK & ~1U;
+  if ( isProtection( address ) )
+  {
+    return mProtection->peek( address );
+  }
   if ( address < 0x800000U )
   {
     return mRom.word( address );

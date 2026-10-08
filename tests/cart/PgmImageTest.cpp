@@ -200,3 +200,115 @@ TEST_CASE( "a file that breaks the format is refused with the field at fault nam
     REQUIRE( errorOf( bytes ).contains( "unknown type 7" ) );
   }
 }
+
+TEST_CASE( "an image's own region is the one its protection holds", "[cart]" )
+{
+  SECTION( "ASIC3: the region block's default" )
+  {
+    PgmFile file = orlegendLike();
+    file.regionBlock = pgm::test::asic3RegionBlock( 3, { { fourCc( "WRLD" ), 0 }, { fourCc( "CHNA" ), 3 } } );
+    REQUIRE( valueOf( PgmImage::parse( pgm::test::write( file ) ) ).ownRegion() == 3U );
+  }
+
+  SECTION( "ASIC27: a big-endian word of the internal ROM" )
+  {
+    PgmFile file = orlegendLike();
+    std::vector<std::uint8_t> internal( 0x100, 0 );
+    internal[0x40] = 0x00;
+    internal[0x41] = 0x05;
+    file.roms.push_back( PgmRom{ .type = 2, .mapping = 0, .data = internal } );
+    file.regionBlock = pgm::test::asic27RegionBlock( 0, 0x40, { { fourCc( "WRLD" ), 5 } } );
+    REQUIRE( valueOf( PgmImage::parse( pgm::test::write( file ) ) ).ownRegion() == 5U );
+  }
+
+  SECTION( "ASIC27: a byte of the internal ROM, an instruction's immediate" )
+  {
+    PgmFile file = orlegendLike();
+    std::vector<std::uint8_t> internal( 0x100, 0xe3 );
+    internal[0x20] = 0x02;
+    file.roms.push_back( PgmRom{ .type = 2, .mapping = 0, .data = internal } );
+    file.regionBlock = pgm::test::asic27RegionBlock( 1, 0x20, { { fourCc( "JAPN" ), 2 } } );
+    REQUIRE( valueOf( PgmImage::parse( pgm::test::write( file ) ) ).ownRegion() == 2U );
+  }
+
+  SECTION( "ASIC27 without an internal ROM: none" )
+  {
+    PgmFile file = orlegendLike();
+    file.regionBlock = pgm::test::asic27RegionBlock( 0, 0x40, { { fourCc( "WRLD" ), 5 } } );
+    REQUIRE_FALSE( valueOf( PgmImage::parse( pgm::test::write( file ) ) ).ownRegion().has_value() );
+  }
+
+  SECTION( "IGS025: the I25 block's default" )
+  {
+    PgmFile file = orlegendLike();
+    file.roms.push_back(
+        PgmRom{ .type = 9, .mapping = 0, .data = pgm::test::igs025Block( 2, 0x21, { { .region = 0x21 } } ) } );
+    file.regionBlock = pgm::test::igs025RegionBlock( { { fourCc( "WRLD" ), 0x21 } } );
+    REQUIRE( valueOf( PgmImage::parse( pgm::test::write( file ) ) ).ownRegion() == 0x21U );
+  }
+
+  SECTION( "no region block: none" )
+  {
+    REQUIRE_FALSE( valueOf( PgmImage::parse( pgm::test::write( orlegendLike() ) ) ).ownRegion().has_value() );
+  }
+}
+
+TEST_CASE( "a region is chosen by its code, among those the image has", "[cart]" )
+{
+  PgmFile file = orlegendLike();
+  file.roms.push_back(
+      PgmRom{ .type = 9,
+              .mapping = 0,
+              .data = pgm::test::igs025Block( 1,
+                                              6,
+                                              { { .region = 6, .gameId = 0x00060006, .fill = 1 },
+                                                { .region = 1, .gameId = 0x00060001, .fill = 2 },
+                                                { .region = 6, .gameId = 0x00060007, .fill = 3 } } ) } );
+  file.regionBlock =
+      pgm::test::igs025RegionBlock( { { fourCc( "WRLD" ), 6 }, { fourCc( "JAPN" ), 1 }, { fourCc( "SNGP" ), 7 } } );
+  auto const image = valueOf( PgmImage::parse( pgm::test::write( file ) ) );
+
+  REQUIRE( image.regionValue( fourCc( "JAPN" ) ) == 1U );
+  REQUIRE( image.regionValue( fourCc( "KREA" ) ).error().contains( "has no region KREA; it has WRLD, JAPN, SNGP" ) );
+  // A code whose value no table names cannot be run as.
+  REQUIRE( image.regionValue( fourCc( "SNGP" ) ).error().contains( "no table for region SNGP (7)" ) );
+
+  // A value named twice is the first table's.
+  auto const* const world = image.igs025Table( 6 );
+  REQUIRE( world != nullptr );
+  REQUIRE( world->gameId == 0x00060006U );
+  REQUIRE( world->data[0] == 1 );
+  REQUIRE( world->data[0xeb] == static_cast<std::uint8_t>( 1 + 0xeb ) );
+  REQUIRE( image.igs025Table( 9 ) == nullptr );
+
+  REQUIRE( valueOf( PgmImage::parse( pgm::test::write( orlegendLike() ) ) )
+               .regionValue( fourCc( "WRLD" ) )
+               .error()
+               .contains( "no regions" ) );
+}
+
+TEST_CASE( "a four-character code spells an agnostic id", "[cart]" )
+{
+  REQUIRE( pgm::cart::agnosticIdOf( "WRLD" ) == fourCc( "WRLD" ) );
+  REQUIRE_FALSE( pgm::cart::agnosticIdOf( "WRL" ).has_value() );
+  REQUIRE_FALSE( pgm::cart::agnosticIdOf( "WORLD" ).has_value() );
+}
+
+TEST_CASE( "protection data that breaks the format is refused", "[cart]" )
+{
+  SECTION( "an I25 block whose size is not its tables'" )
+  {
+    PgmFile file = orlegendLike();
+    auto block = pgm::test::igs025Block( 2, 0x21, { { .region = 0x21 } } );
+    block.pop_back();
+    file.roms.push_back( PgmRom{ .type = 9, .mapping = 0, .data = block } );
+    REQUIRE( errorOf( pgm::test::write( file ) ).contains( "does not hold the 1 tables" ) );
+  }
+
+  SECTION( "an ASIC27 patch type the format does not define" )
+  {
+    PgmFile file = orlegendLike();
+    file.regionBlock = pgm::test::asic27RegionBlock( 2, 0x40, { { fourCc( "WRLD" ), 5 } } );
+    REQUIRE( errorOf( pgm::test::write( file ) ).contains( "patch type 2" ) );
+  }
+}

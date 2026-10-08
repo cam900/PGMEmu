@@ -1,6 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "support/Files.hpp"
 #include "support/Fixture.hpp"
+#include "support/PgmFile.hpp"
 
 #include "pgm/Emulator.hpp"
 #include "pgm/control/Dispatcher.hpp"
@@ -105,6 +107,51 @@ TEST_CASE( "a load that fails says why, and leaves what was loaded", "[control]"
   }
 
   REQUIRE( emulator.gameName() == "testcart" );
+}
+
+TEST_CASE( "a game runs as its image's region, or as the one it is loaded with", "[control]" )
+{
+  Fixture const fixture;
+  pgm::test::PgmFile cart;
+  cart.shortName = "regioncart";
+  cart.hardware = 1;
+  cart.roms = { pgm::test::PgmRom{ .type = 1, .mapping = 0x100000, .data = { 0x4e, 0x71, 0x4e, 0x75 } } };
+  cart.regionBlock =
+      pgm::test::asic3RegionBlock( 3, { { pgm::test::fourCc( "WRLD" ), 0 }, { pgm::test::fourCc( "CHNA" ), 3 } } );
+  pgm::test::writeFile( fixture.romDirectory() / "regioncart.pgm", pgm::test::write( cart ) );
+  pgm::Emulator emulator{ fixture.settings() };
+  Dispatcher const dispatcher{ emulator };
+  auto const region = [&] { return call( dispatcher, "emu.status" ).at( "result" ).at( "region" ); };
+
+  REQUIRE( call( dispatcher, "emu.load_game", { { "name", "testcart" } } ).at( "ok" ) == true );
+  REQUIRE( region().is_null() );
+
+  REQUIRE( call( dispatcher, "emu.load_game", { { "name", "regioncart" } } ).at( "ok" ) == true );
+  REQUIRE( region() == "CHNA" );
+
+  REQUIRE( call( dispatcher, "emu.load_game", { { "name", "regioncart" }, { "region", "WRLD" } } ).at( "ok" ) == true );
+  REQUIRE( region() == "WRLD" );
+
+  auto const refused = call( dispatcher, "emu.load_game", { { "name", "regioncart" }, { "region", "KREA" } } );
+  REQUIRE( errorCode( refused ) == "unknown_region" );
+  REQUIRE( refused.at( "error" ).at( "message" ).get<std::string>().contains( "it has WRLD, CHNA" ) );
+  REQUIRE( region() == "WRLD" );
+
+  REQUIRE( call( dispatcher, "emu.run_frames", { { "count", 2 } } ).at( "ok" ) == true );
+  REQUIRE( call( dispatcher, "emu.set_region", { { "region", "CHNA" } } ).at( "ok" ) == true );
+  REQUIRE( region() == "CHNA" );
+  REQUIRE( call( dispatcher, "emu.status" ).at( "result" ).at( "frame" ) == 0 ); // powered up again
+  REQUIRE( errorCode( call( dispatcher, "emu.set_region", { { "region", "KREA" } } ) ) == "unknown_region" );
+  REQUIRE( region() == "CHNA" );
+
+  REQUIRE( errorCode( call( dispatcher, "emu.load_game", { { "name", "testcart" }, { "region", "WRLD" } } ) ) ==
+           "unknown_region" );
+  REQUIRE( errorCode( call( dispatcher, "emu.load_game", { { "name", "pgm" }, { "region", "WRLD" } } ) ) ==
+           "unknown_region" );
+  REQUIRE( call( dispatcher, "emu.load_game", { { "name", "pgm" } } ).at( "ok" ) == true );
+  REQUIRE( errorCode( call( dispatcher, "emu.set_region", { { "region", "WRLD" } } ) ) == "unknown_region" );
+  REQUIRE( errorCode( call( dispatcher, "emu.load_game", { { "name", "regioncart" }, { "region", 5 } } ) ) ==
+           "bad_request" );
 }
 
 TEST_CASE( "no BIOS source means no game can be loaded", "[control]" )

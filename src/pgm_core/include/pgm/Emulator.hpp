@@ -38,7 +38,8 @@ struct LoadFailure
   enum class Kind : std::uint8_t
   {
     UNKNOWN_GAME,
-    LOAD_FAILED
+    LOAD_FAILED,
+    UNKNOWN_REGION
   };
 
   Kind kind{};
@@ -65,16 +66,29 @@ public:
 
   /// Loads `<romDirectory>/<name>.pgm` with the BIOS, or the BIOS alone when
   /// `name` is BIOS_ONLY. A name is a set name, not a path: it holds only
-  /// letters, digits and underscores. On failure what was loaded stays loaded.
-  std::expected<void, LoadFailure> loadGameByName( std::string_view name );
+  /// letters, digits and underscores. `region`, a four-character code such as
+  /// `JAPN`, makes the game that region; without it the game runs as its image
+  /// says (cart::PgmImage::ownRegion). On failure what was loaded stays loaded.
+  std::expected<void, LoadFailure> loadGameByName( std::string_view name,
+                                                   std::optional<std::string_view> region = std::nullopt );
 
-  /// Loads the `.pgm` at `path` with the BIOS. On failure what was loaded
-  /// stays loaded.
-  std::expected<void, LoadFailure> loadGameFromFile( std::filesystem::path const& path );
+  /// Loads the `.pgm` at `path` with the BIOS, as loadGameByName() does.
+  std::expected<void, LoadFailure> loadGameFromFile( std::filesystem::path const& path,
+                                                     std::optional<std::string_view> region = std::nullopt );
+
+  /// Powers the board up again with the loaded cartridge, its game made the
+  /// region `region` names, as loading it with that region would. On failure
+  /// the game runs on undisturbed.
+  std::expected<void, LoadFailure> setRegion( std::string_view region );
 
   /// The short name of the loaded cartridge, BIOS_ONLY for the BIOS alone, or
   /// nothing before a game is loaded.
   [[nodiscard]] std::optional<std::string> gameName() const;
+
+  /// The four-character code of the region the loaded game runs as: the one
+  /// chosen, or the one its image holds. Nothing when the image has no
+  /// regions, or holds a value its region table does not name.
+  [[nodiscard]] std::optional<std::string> region() const;
 
   [[nodiscard]] cart::Bios const* bios() const;
   [[nodiscard]] cart::PgmImage const* cartridge() const;
@@ -92,13 +106,22 @@ public:
 private:
   [[nodiscard]] std::expected<cart::Bios, LoadFailure> loadBios() const;
 
+  /// The agnostic id `region` spells, when `cartridge` can run as it.
+  [[nodiscard]] static std::expected<std::uint32_t, LoadFailure> chooseRegion( cart::PgmImage const& cartridge,
+                                                                               std::string_view region );
+
+  /// Powers a new board up with what is loaded.
+  void powerUp();
+
   /// Makes `bios` and `cartridge` the loaded game and powers a new board up
-  /// with them.
-  void install( cart::Bios bios, std::optional<cart::PgmImage> cartridge );
+  /// with them, the game made region `region` when one is given.
+  void install( cart::Bios bios, std::optional<cart::PgmImage> cartridge, std::optional<std::uint32_t> region );
 
   Settings mSettings;
   std::optional<cart::Bios> mBios;
   std::optional<cart::PgmImage> mCartridge;
+  /// The agnostic id of the region chosen when the game was loaded.
+  std::optional<std::uint32_t> mRegion;
   // Declared last, so that it goes before the ROMs it reads from.
   std::unique_ptr<machine::Machine> mMachine;
 };

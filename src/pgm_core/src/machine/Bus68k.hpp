@@ -2,11 +2,13 @@
 
 // The 68000's address space: the chip selects of rtl/address_translator.sv and
 // the order PGM.sv's data multiplexer gives them, at MiSTer core commit
-// e898860. Protection devices are added to it per board in M7.
+// e898860. A cartridge's protection takes its addresses before the board's
+// own decode (Protection.hpp).
 
 #include "Asic3.hpp"
 #include "Igs023.hpp"
 #include "Igs026.hpp"
+#include "Protection.hpp"
 #include "Sdram.hpp"
 
 #include "pgm/machine/Time.hpp"
@@ -47,6 +49,8 @@ struct BusDevices
   Igs026& io;
   Asic3& asic3;
   InputPorts const& inputs;
+  /// The cartridge's protection; null for none.
+  Protection* protection;
 };
 
 class Bus68k
@@ -67,11 +71,16 @@ public:
   [[nodiscard]] std::span<std::uint8_t const> workRam() const;
 
 private:
+  [[nodiscard]] bool isProtection( std::uint32_t address ) const;
+
   RomSpace mRom;
   Igs023& mVideo;
   Igs026& mIo;
   Asic3& mAsic3;
   InputPorts const& mInputs;
+  Protection* mProtection;
+  /// The 64 KB pages in which the protection may answer, by `address >> 16`.
+  std::array<bool, 256> mProtectionPages{};
   Time& mTime;
   /// 128 KB of work RAM in the 68000's byte order; the sprite DMA reads it too.
   std::span<std::uint8_t> mWorkRam;

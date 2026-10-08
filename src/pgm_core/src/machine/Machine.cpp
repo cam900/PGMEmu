@@ -1,5 +1,6 @@
 #include "pgm/machine/Machine.hpp"
 
+#include "Boards.hpp"
 #include "Bus68k.hpp"
 #include "ClockEnables.hpp"
 #include "Ics2115.hpp"
@@ -76,16 +77,26 @@ std::uint32_t mappingOf( cart::PgmImage const* cartridge, cart::RomType type )
   return rom ? rom->mapping : 0;
 }
 
-/// The region ASIC3 reports: the cartridge's default when its region block is
-/// ASIC3's, the world otherwise, which is what the RTL wires in for every game.
-std::uint8_t asic3Region( cart::PgmImage const* cartridge )
+/// The region value the game is made: `chosen`, or the one its image holds.
+std::uint32_t regionOf( cart::PgmImage const* cartridge, std::optional<std::uint32_t> chosen )
+{
+  if ( chosen )
+  {
+    return *chosen;
+  }
+  return cartridge == nullptr ? 0 : cartridge->ownRegion().value_or( 0 );
+}
+
+/// The region ASIC3 reports: the game's when its region block is ASIC3's, the
+/// world otherwise, which is what the RTL wires in for every game.
+std::uint8_t asic3Region( cart::PgmImage const* cartridge, std::uint32_t region )
 {
   if ( cartridge == nullptr || !cartridge->regionInfo() ||
        cartridge->regionInfo()->scheme != cart::RegionScheme::ASIC3 )
   {
     return 0;
   }
-  return static_cast<std::uint8_t>( cartridge->regionInfo()->defaultRegion );
+  return static_cast<std::uint8_t>( region );
 }
 
 Sdram sdramOf( cart::Bios const& bios, cart::PgmImage const* cartridge )
@@ -103,13 +114,13 @@ Sdram sdramOf( cart::Bios const& bios, cart::PgmImage const* cartridge )
 /// What a save state begins with, and the version of its layout, which
 /// changes whenever a part's state does.
 constexpr std::uint32_t STATE_MAGIC = 0x54534750; // "PGST"
-constexpr std::uint32_t STATE_VERSION = 1;
+constexpr std::uint32_t STATE_VERSION = 2;
 
 } // namespace
 
 struct Machine::Parts
 {
-  Parts( cart::Bios const& bios, cart::PgmImage const* cartridge )
+  Parts( cart::Bios const& bios, cart::PgmImage const* cartridge, std::uint32_t region )
       : sdram{ sdramOf( bios, cartridge ) },
         video{ sdram,
                TileMapping{ .cartridge = cartridge != nullptr, .tileBase = mappingOf( cartridge, cart::RomType::TLE ) },
@@ -117,11 +128,12 @@ struct Machine::Parts
         ics2115{ sdram,
                  SampleMapping{ .cartridge = cartridge != nullptr,
                                 .musicBase = mappingOf( cartridge, cart::RomType::AUD ) } },
-        io{ z80, ics2115 }, asic3{ asic3Region( cartridge ) },
+        io{ z80, ics2115 }, asic3{ asic3Region( cartridge, region ) },
+        protection{ cartridge == nullptr ? nullptr : makeProtection( *cartridge, region ) },
         bus{ RomSpace{ .sdram = &sdram,
                        .cartridge = cartridge != nullptr,
                        .cartBase = mappingOf( cartridge, cart::RomType::PRG ) },
-             BusDevices{ .video = video, .io = io, .asic3 = asic3, .inputs = inputs },
+             BusDevices{ .video = video, .io = io, .asic3 = asic3, .inputs = inputs, .protection = protection.get() },
              now,
              workRam },
         cpu{ bus, now }
@@ -145,6 +157,10 @@ struct Machine::Parts
     ics2115.serialize( archive );
     io.serialize( archive );
     asic3.serialize( archive );
+    if ( protection )
+    {
+      protection->serialize( archive );
+    }
     cpu.serialize( archive );
   }
 
@@ -183,6 +199,7 @@ struct Machine::Parts
   Ics2115 ics2115;
   Igs026 io;
   Asic3 asic3;
+  std::unique_ptr<Protection> protection;
   Bus68k bus;
   M68k cpu;
 };
@@ -196,9 +213,13 @@ RunResult Machine::Parts::run( Time until, std::function<bool()> const* conditio
       start < FRAME_BOUNDARY_OFFSET ? 0 : ( ( start - FRAME_BOUNDARY_OFFSET ) / UNITS_PER_FRAME ) + 1;
   auto const result = [&]( StopReason reason )
   {
-    // The sound side has only been caught up as far as the 68000 last
-    // reached it.
+    // The sound side and the protection have only been caught up as far as
+    // the 68000 last reached them.
     io.advanceTo( now );
+    if ( protection )
+    {
+      protection->advanceTo( now );
+    }
     ics2115.takeFrames( audio );
     if ( audioListener )
     {
@@ -276,10 +297,14 @@ RunResult Machine::Parts::run( Time until, std::function<bool()> const* conditio
   return result( condition != nullptr ? StopReason::TIMEOUT : StopReason::COMPLETED );
 }
 
-Machine::Machine( cart::Bios const& bios, cart::PgmImage const* cartridge )
-    : mParts{ std::make_unique<Parts>( bios, cartridge ) }
+Machine::Machine( cart::Bios const& bios, cart::PgmImage const* cartridge, std::optional<std::uint32_t> region )
+    : mParts{ std::make_unique<Parts>( bios, cartridge, regionOf( cartridge, region ) ) }
 {
   mParts->resetReleasedAt = POWER_ON_RESET_TICKS * UNITS_PER_MASTER_TICK;
+  if ( mParts->protection )
+  {
+    mParts->protection->reset( 0 );
+  }
 }
 
 Machine::~Machine() = default;
@@ -291,6 +316,10 @@ void Machine::reset( std::int64_t masterTicks )
   parts.io.reset( parts.now );
   parts.video.reset();
   parts.asic3.reset();
+  if ( parts.protection )
+  {
+    parts.protection->reset( parts.now );
+  }
   parts.now += masterTicks * UNITS_PER_MASTER_TICK;
   parts.video.advanceTo( parts.now );
   parts.resetReleasedAt = parts.now;

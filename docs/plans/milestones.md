@@ -21,13 +21,11 @@ a screen. That is why the control API and the headless runner come before most o
 
 *Delivers,* in order:
 
-1. ASIC3's region: chosen by the player among the image's regions (the chip itself came with M3,
-   for orlegend's video).
-2. `Igs025` and `Igs022`: killbld, drgw3, dwex.
-3. The ARM7TDMI core: our own or SkyEmu's, decided by a record; the ARM7TDMI suite passing.
-4. `Igs027a` type 1: kovsh and photoy2k, then ket, espgal and ddp3.
-5. Type 2: kov2, kov2p, ddp2, martmast, dw2001, dwpc.
-6. Type 3: dmnfrnt, theglad, svg, killbldp, happy6.
+1. The ARM7TDMI core: our own or SkyEmu's, decided by a record; the ARM7TDMI suite passing.
+2. `Igs027a` type 1: kovsh and photoy2k, then ket, espgal and ddp3. An ASIC27 game's region is
+   patched into its internal ROM ([pgm-format.md §4](../spec/pgm-format.md)).
+3. Type 2: kov2, kov2p, ddp2, martmast, dw2001, dwpc.
+4. Type 3: dmnfrnt, theglad, svg, killbldp, happy6.
 
 *Exit:* every game the MiSTer README lists as supported reaches gameplay, and its golden frames
 are recorded.

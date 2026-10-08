@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <string_view>
 #include <utility>
 
 namespace pgm::app
@@ -38,6 +39,24 @@ constexpr char const* VIDEO_WINDOW = "Video";
 std::string sdlError( std::string const& what )
 {
   return what + ": " + SDL_GetError();
+}
+
+/// What the region codes of docs/spec/pgm-format.md §4.3 stand for.
+constexpr std::array<std::pair<std::string_view, std::string_view>, 8> REGION_NAMES{ {
+    { "WRLD", "World" },
+    { "HGKG", "Hong Kong" },
+    { "JAPN", "Japan" },
+    { "KREA", "Korea" },
+    { "TAWN", "Taiwan" },
+    { "CHNA", "China" },
+    { "USOA", "USA" },
+    { "SNGP", "Singapore" },
+} };
+
+std::string_view regionName( std::string_view code )
+{
+  auto const name = std::ranges::find( REGION_NAMES, code, &std::pair<std::string_view, std::string_view>::first );
+  return name == REGION_NAMES.end() ? code : name->second;
 }
 
 } // namespace
@@ -269,6 +288,11 @@ void Application::drawMenuBar()
     {
       static_cast<void>( request( "emu.reset", { { "cycles", 100 } } ) );
     }
+    if ( ImGui::BeginMenu( "Region" ) )
+    {
+      drawRegionMenu();
+      ImGui::EndMenu();
+    }
     ImGui::EndMenu();
   }
   if ( ImGui::BeginMenu( "View" ) )
@@ -281,6 +305,29 @@ void Application::drawMenuBar()
     ImGui::EndMenu();
   }
   ImGui::EndMainMenuBar();
+}
+
+void Application::drawRegionMenu()
+{
+  auto const info = request( "emu.cartridge_info" );
+  if ( info.at( "ok" ) != true || info.at( "result" ).at( "region_info" ).is_null() )
+  {
+    ImGui::TextDisabled( "This game has no regions" );
+    return;
+  }
+  auto const status = request( "emu.status" );
+  control::Json const current = status.at( "ok" ) == true ? status.at( "result" ).at( "region" ) : control::Json{};
+  for ( control::Json const& region : info.at( "result" ).at( "region_info" ).at( "regions" ) )
+  {
+    auto const code = region.at( "id" ).get<std::string>();
+    if ( ImGui::MenuItem( fmt::format( "{} ({})", regionName( code ), code ).c_str(), nullptr, current == code ) &&
+         current != code )
+    {
+      auto const response = request( "emu.set_region", { { "region", code } } );
+      mLastError =
+          response.at( "ok" ) == true ? std::string{} : response.at( "error" ).at( "message" ).get<std::string>();
+    }
+  }
 }
 
 void Application::drawScreenWindow()

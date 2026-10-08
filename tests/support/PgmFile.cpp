@@ -97,4 +97,61 @@ std::vector<std::uint8_t> asic3RegionBlock( std::uint32_t defaultRegion,
   return block;
 }
 
+std::vector<std::uint8_t> asic27RegionBlock( std::uint16_t patchType,
+                                             std::uint16_t patchOffset,
+                                             std::vector<std::pair<std::uint32_t, std::uint32_t>> const& regions )
+{
+  std::vector<std::uint8_t> block( 8 + ( regions.size() * 8 ), 0 );
+  block[0] = 0; // ASIC27
+  block[1] = static_cast<std::uint8_t>( regions.size() );
+  block[2] = 8; // the table follows the 8-byte info
+  block[4] = static_cast<std::uint8_t>( patchType );
+  block[5] = static_cast<std::uint8_t>( patchType >> 8U );
+  block[6] = static_cast<std::uint8_t>( patchOffset );
+  block[7] = static_cast<std::uint8_t>( patchOffset >> 8U );
+  for ( std::size_t i = 0; i < regions.size(); ++i )
+  {
+    poke32( block, 8 + ( i * 8 ), regions[i].first );
+    poke32( block, 12 + ( i * 8 ), regions[i].second );
+  }
+  return block;
+}
+
+std::vector<std::uint8_t> igs025RegionBlock( std::vector<std::pair<std::uint32_t, std::uint32_t>> const& regions )
+{
+  std::vector<std::uint8_t> block( 4 + ( regions.size() * 8 ), 0 );
+  block[0] = 1; // IGS025
+  block[1] = static_cast<std::uint8_t>( regions.size() );
+  block[2] = 4; // the table follows the 4-byte info
+  for ( std::size_t i = 0; i < regions.size(); ++i )
+  {
+    poke32( block, 4 + ( i * 8 ), regions[i].first );
+    poke32( block, 8 + ( i * 8 ), regions[i].second );
+  }
+  return block;
+}
+
+std::vector<std::uint8_t>
+igs025Block( std::uint8_t variant, std::uint8_t defaultRegion, std::vector<Igs025TableSpec> const& tables )
+{
+  std::vector<std::uint8_t> block{ variant, defaultRegion, static_cast<std::uint8_t>( tables.size() ) };
+  for ( Igs025TableSpec const& table : tables )
+  {
+    block.push_back( table.region );
+    for ( unsigned shift = 24;; shift -= 8 )
+    {
+      block.push_back( static_cast<std::uint8_t>( table.gameId >> shift ) );
+      if ( shift == 0 )
+      {
+        break;
+      }
+    }
+    for ( std::size_t i = 0; i < 0xec; ++i )
+    {
+      block.push_back( static_cast<std::uint8_t>( table.fill + i ) );
+    }
+  }
+  return block;
+}
+
 } // namespace pgm::test

@@ -15,6 +15,7 @@ makes it true and comes out in the commit that makes it false.
 | RTC | Starts from zero rather than the date. Its "second" passes every 65536 pulses of a clock derived from the Z80's, about 1.77 s. | A V3021 with its own 32.768 kHz crystal. | `V3021` |
 | Z80 at power-up | Runs from address 0 with every register zero: its reset is a latch bit that starts clear, so it is never reset until the BIOS holds it, and the simulator starts every flip-flop at zero. A reset then sets only what tv80's flip-flops hold (PC, AF, AF', SP, I, R, the interrupt state), and leaves BC to IY as they were. | Undefined until the BIOS resets it. | `Z80` |
 | ICS2115's voices | `ics2115_osc.sv`'s model, quirks included: the oscillator's direction is read from bit 6 of its control register while a bidirectional loop flips bit 6 of its configuration; a volume loop turns back once and a plain one going up holds; 16-bit samples are the addressed byte twice. The RTL's comments mark much of it as measured on a board. | Where it differs, not known here. | `Ics2115` |
+| IGS022's commands | The 68000's write to the IGS025 that starts one waits until the IGS022 has finished it (`prot_dtack_n` in `PGM.sv`, which its own comment doubts). | The cartridge has no hold on DTACK; the game waits for the completion code in shared RAM. | `Igs022Igs025Board` |
 
 ## The emulator, where it is not yet the RTL
 
@@ -22,7 +23,8 @@ makes it true and comes out in the commit that makes it false.
 |---|---|---|---|
 | VRAM contention | Wait states from `igs023.sv`'s byte-wide state machine, and a wait to the end of the text layer's fetch window. The background's reads of a few dots per tile are not counted. | The same, and the background's reads. | open ([question](../open-questions.md)) |
 | When the picture is read | A line at its start, sprites a frame at a time ([0011](../decisions/0011-video-is-drawn-by-line-and-by-frame.md)). | Dot by dot, sprites as line buffers free. | not planned |
-| ASIC3's region | The cartridge's default region. | Always 0, the world. The two agree for every image built from the workspace's sets. | — |
+| A game's region | The one its image holds (ASIC3's default, the IGS025's default, what the ARM's internal ROM holds), or another of the image's, chosen when it is loaded (`emu.load_game`, `emu.set_region`). | ASIC3 always 0, the world; the IGS025 the world for each game; the ARM what its internal ROM holds. Unchosen, the two agree for every image built from the workspace's sets. | — |
+| IGS022's timing | Commands run whole when the IGS025 starts them; the 68000's write waits the ticks the RTL's engine would take if every ROM read hit `prot_cache.sv`. The DMA the engine runs at reset is done at once. | The engine's states one a master tick, ROM reads waiting on DDR when they miss; the reset's DMA takes some 8,200 ticks and more. | not planned |
 | ICS2115's sequencing | The voices of a sample period one after another, each when the RTL's sequencer would load it if both its sample reads hit the cache: 24 master ticks apiece. A register write takes effect at once. | The same order, but a voice whose reads miss the cache waits for SDRAM, whose latency the simulator varies, and a write waits a few cycles for the voice it touches to leave the pipeline. A write that lands close to a voice's turn can reach it one sample earlier or later than here. | not planned |
 | ICS2115's status bit 6 | Never set. | Set while a voice write is queued, a few cycles after each. | not planned |
 | Z80 bus request | Granted before the Z80's next opcode fetch, which goes on when the bus comes back. | tv80s grants at the end of the current machine cycle, and starts the next one two of its ticks after the bus comes back. Modelled that way, PGMTest's ICS pages start the ICS2115 in step with the RTL, but orlegend's attract sound drifts from it after 18 s; as it is, orlegend's sound and the BIOS's are the RTL's sample for sample, and `z80_ics_test` and `ics2115_vol_pan` start the chip 21 and 29 samples early ([question](../open-questions.md)). | open |
@@ -48,6 +50,10 @@ makes it true and comes out in the commit that makes it false.
 - **PGMTest's video pages:** `bg_test`, `sprite_test`, `video_timing` and `system_basics` match
   the RTL picture pixel for pixel. `fg_test` differs in its rightmost column, for the reason in
   the table above.
+- **The Killing Blade and Dragon World 3:** their games first reach the IGS025 at frame 767. At
+  frame 1100, past their start-up exchanges with it and the IGS022 and into their warning
+  screens, VRAM, palette RAM and the picture are identical; work RAM is identical in killbld,
+  and differs in dead stack only in drgw3.
 - **Dead stack:** bytes below the stack pointer hold what interrupts pushed earlier, and differ
   wherever an interrupt arrived at a different instruction. `--ignore` leaves them out; orlegend's
   stack reaches down to 0x81F000, and the BIOS's sound driver's down from 0x3FE1 in the Z80's

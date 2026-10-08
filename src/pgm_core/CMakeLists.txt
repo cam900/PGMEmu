@@ -20,9 +20,13 @@ add_library( pgm_core
   src/cpu/MoiraConfigCheck.cpp
   src/io/RomSources.cpp
   src/machine/Asic3.cpp
+  src/machine/Boards.cpp
   src/machine/Bus68k.cpp
-  src/machine/Igs023.cpp
   src/machine/Ics2115.cpp
+  src/machine/Igs022.cpp
+  src/machine/Igs022Igs025Board.cpp
+  src/machine/Igs023.cpp
+  src/machine/Igs025.cpp
   src/machine/Igs026.cpp
   src/machine/M68k.cpp
   src/machine/Machine.cpp

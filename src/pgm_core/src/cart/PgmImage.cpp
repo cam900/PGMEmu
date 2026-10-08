@@ -130,6 +130,11 @@ std::expected<RegionInfo, std::string> parseRegionInfo( Bytes header, std::uint3
   {
     info.patchType = readLe16( header, offset + 4 );
     info.patchOffset = readLe16( header, offset + 6 );
+    if ( info.patchType != ASIC27_PATCH_BE16 && info.patchType != ASIC27_PATCH_BYTE )
+    {
+      return std::unexpected(
+          fmt::format( "ASIC27 region block has patch type {}; 0 and 1 are defined", info.patchType ) );
+    }
   }
   else if ( info.scheme == RegionScheme::ASIC3 )
   {
@@ -143,6 +148,37 @@ std::expected<RegionInfo, std::string> parseRegionInfo( Bytes header, std::uint3
     info.regions.push_back( Region{ .agnosticId = readLe32( header, at ), .regionId = readLe32( header, at + 4 ) } );
   }
   return info;
+}
+
+// The I25 block, docs/spec/pgm-format.md §3.1.
+constexpr std::size_t IGS025_HEADER_SIZE = 3;
+constexpr std::size_t IGS025_TABLE_SIZE = 1 + 4 + std::tuple_size_v<decltype( Igs025Table::data )>;
+
+std::expected<Igs025Settings, std::string> parseIgs025Settings( Bytes block )
+{
+  if ( block.size() < IGS025_HEADER_SIZE )
+  {
+    return std::unexpected( fmt::format( "I25 block of {} bytes is shorter than its header", block.size() ) );
+  }
+  Igs025Settings settings{ .variant = block[0], .defaultRegion = block[1], .tables = {} };
+  std::size_t const count = block[2];
+  if ( block.size() != IGS025_HEADER_SIZE + ( count * IGS025_TABLE_SIZE ) )
+  {
+    return std::unexpected(
+        fmt::format( "I25 block of {} bytes does not hold the {} tables it says it has", block.size(), count ) );
+  }
+  for ( std::size_t i = 0; i < count; ++i )
+  {
+    Bytes const entry = block.subspan( IGS025_HEADER_SIZE + ( i * IGS025_TABLE_SIZE ), IGS025_TABLE_SIZE );
+    Igs025Table table{ .region = entry[0],
+                       .gameId = ( static_cast<std::uint32_t>( entry[1] ) << 24U ) |
+                                 ( static_cast<std::uint32_t>( entry[2] ) << 16U ) |
+                                 ( static_cast<std::uint32_t>( entry[3] ) << 8U ) | entry[4],
+                       .data = {} };
+    std::ranges::copy( entry.subspan( 5 ), table.data.begin() );
+    settings.tables.push_back( table );
+  }
+  return settings;
 }
 
 } // namespace
@@ -221,6 +257,20 @@ std::string fourCc( std::uint32_t agnosticId )
            static_cast<char>( agnosticId >> 16U ),
            static_cast<char>( agnosticId >> 8U ),
            static_cast<char>( agnosticId ) };
+}
+
+std::optional<std::uint32_t> agnosticIdOf( std::string_view code )
+{
+  if ( code.size() != 4 )
+  {
+    return std::nullopt;
+  }
+  std::uint32_t id = 0;
+  for ( char const c : code )
+  {
+    id = ( id << 8U ) | static_cast<std::uint8_t>( c );
+  }
+  return id;
 }
 
 std::expected<PgmImage, std::string> PgmImage::parse( std::vector<std::uint8_t> file )
@@ -325,6 +375,16 @@ std::expected<PgmImage, std::string> PgmImage::parse( std::vector<std::uint8_t> 
   }
 
   image.mFile = std::move( file );
+
+  if ( auto const block = image.rom( RomType::I25 ) )
+  {
+    auto settings = parseIgs025Settings( block->data );
+    if ( !settings )
+    {
+      return std::unexpected( settings.error() );
+    }
+    image.mIgs025Settings = std::move( *settings );
+  }
   return image;
 }
 
@@ -376,6 +436,80 @@ Hardware PgmImage::hardware() const
 std::optional<RegionInfo> const& PgmImage::regionInfo() const
 {
   return mRegionInfo;
+}
+
+std::optional<Igs025Settings> const& PgmImage::igs025Settings() const
+{
+  return mIgs025Settings;
+}
+
+Igs025Table const* PgmImage::igs025Table( std::uint32_t region ) const
+{
+  if ( !mIgs025Settings )
+  {
+    return nullptr;
+  }
+  auto const table = std::ranges::find( mIgs025Settings->tables, region, &Igs025Table::region );
+  return table == mIgs025Settings->tables.end() ? nullptr : &*table;
+}
+
+std::optional<std::uint32_t> PgmImage::ownRegion() const
+{
+  if ( !mRegionInfo )
+  {
+    return std::nullopt;
+  }
+  switch ( mRegionInfo->scheme )
+  {
+  case RegionScheme::ASIC3:
+    return mRegionInfo->defaultRegion;
+  case RegionScheme::IGS025:
+    if ( !mIgs025Settings )
+    {
+      return std::nullopt;
+    }
+    return mIgs025Settings->defaultRegion;
+  case RegionScheme::ASIC27:
+  {
+    auto const internal = rom( RomType::INT );
+    std::size_t const at = mRegionInfo->patchOffset;
+    std::size_t const size = mRegionInfo->patchType == ASIC27_PATCH_BE16 ? 2 : 1;
+    if ( !internal || at + size > internal->data.size() )
+    {
+      return std::nullopt;
+    }
+    if ( size == 1 )
+    {
+      return internal->data[at];
+    }
+    return static_cast<std::uint32_t>( ( internal->data[at] << 8U ) | internal->data[at + 1] );
+  }
+  }
+  return std::nullopt;
+}
+
+std::expected<std::uint32_t, std::string> PgmImage::regionValue( std::uint32_t agnosticId ) const
+{
+  if ( !mRegionInfo )
+  {
+    return std::unexpected( fmt::format( "{} has no regions to choose from", mShortName ) );
+  }
+  auto const region = std::ranges::find( mRegionInfo->regions, agnosticId, &Region::agnosticId );
+  if ( region == mRegionInfo->regions.end() )
+  {
+    std::string known;
+    for ( Region const& each : mRegionInfo->regions )
+    {
+      known += fmt::format( "{}{}", known.empty() ? "" : ", ", fourCc( each.agnosticId ) );
+    }
+    return std::unexpected( fmt::format( "{} has no region {}; it has {}", mShortName, fourCc( agnosticId ), known ) );
+  }
+  if ( mRegionInfo->scheme == RegionScheme::IGS025 && igs025Table( region->regionId ) == nullptr )
+  {
+    return std::unexpected( fmt::format(
+        "{}'s I25 block has no table for region {} ({})", mShortName, fourCc( agnosticId ), region->regionId ) );
+  }
+  return region->regionId;
 }
 
 std::vector<Rom> PgmImage::roms() const

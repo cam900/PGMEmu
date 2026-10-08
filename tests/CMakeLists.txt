@@ -13,6 +13,7 @@ add_executable( pgm_tests
   cpu/Z80SingleStepTest.cpp
   io/RomSourcesTest.cpp
   machine/Ics2115Test.cpp
+  machine/Igs022Igs025Test.cpp
   machine/Igs023DrawTest.cpp
   machine/Igs023Test.cpp
   machine/Igs026Test.cpp

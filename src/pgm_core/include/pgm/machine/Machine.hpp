@@ -134,10 +134,14 @@ class Machine
 {
 public:
   /// Powers the board up with `bios` and, unless it is null, `cartridge`
-  /// inserted. Its reset line is held for the first 100 master ticks, as the
-  /// RTL simulator's front end holds it; a reset() before the machine runs
-  /// takes their place. Both must outlive the machine.
-  Machine( cart::Bios const& bios, cart::PgmImage const* cartridge );
+  /// inserted, its game made region value `region` (cart::PgmImage::
+  /// regionValue), or the one its image holds when none is given. Its reset
+  /// line is held for the first 100 master ticks, as the RTL simulator's front
+  /// end holds it; a reset() before the machine runs takes their place. Both
+  /// must outlive the machine.
+  Machine( cart::Bios const& bios,
+           cart::PgmImage const* cartridge,
+           std::optional<std::uint32_t> region = std::nullopt );
   ~Machine();
 
   Machine( Machine const& ) = delete;

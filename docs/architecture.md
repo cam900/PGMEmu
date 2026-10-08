@@ -90,9 +90,11 @@ Each hardware module ports one RTL module, and the module header names its sourc
 
 How some of these modules work, and why:
 
-- **`Bus68k`.** A page table of 64 KB pages over the 24-bit space. Each page holds either a
-  direct pointer (ROM, work RAM) or a device. Protection boards patch the table per game.
-  Wait states are charged through Moira's `sync()` hook
+- **`Bus68k`.** The board's decode, by the address's top bits, behind the cartridge's
+  protection: a `Protection` names the 64 KB pages it has an address in, and only there is it
+  asked first. Which protection a cartridge brings is decided from its own data where that
+  tells (the hardware class, the I25 block's variant), and from its set name where only the RTL's
+  per-game table does (`Boards`). Wait states are charged through Moira's `sync()` hook
   ([0003](decisions/0003-cpu-cores.md)).
 - **`Igs023`: video is drawn a line at a time, sprites a frame at a time**
   ([0011](decisions/0011-video-is-drawn-by-line-and-by-frame.md)). A line is drawn when the RTL
@@ -121,6 +123,11 @@ The two halves are separate because PGMBuilder leaves the BIOS out of every imag
 
 PGMBuilder has already decrypted the 68k program and the ARM external ROM, and descrambled
 happy6, so none of that exists in the emulator.
+
+A game learns its region from its protection, and the image says which protection holds it
+and which regions it can be ([spec/pgm-format.md §4](spec/pgm-format.md)). The emulator runs a
+game as the region its image holds unless another is chosen when it is loaded; choosing one
+powers the board up anew, since the region is the chip's from its reset (`emu.set_region`).
 
 The RTL simulator's own `.pgm` loader targets version 0x0010 and is not a reference.
 

@@ -1,0 +1,38 @@
+{
+  "description": "The Killing Blade made Japan: its warning names the country, from the IGS025's Japanese table.",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "killbld",
+        "region": "JAPN"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 1050
+      }
+    },
+    {
+      "checkpoint": "warning"
+    }
+  ],
+  "golden": {
+    "warning": {
+      "frame": 1051,
+      "picture": "ba09d64d",
+      "work_ram": "c870c5a4",
+      "video_ram": "69ee1111",
+      "palette_ram": "34ea63f2",
+      "audio_ram": "f96f844c",
+      "sound": "f1c79dd0"
+    }
+  }
+}

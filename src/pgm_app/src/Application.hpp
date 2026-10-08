@@ -66,6 +66,9 @@ private:
   /// Lays out one frame of the user interface.
   void drawInterface();
   void drawMenuBar();
+  /// The loaded game's regions, the one it runs as ticked; choosing another
+  /// powers the board up again as that region.
+  void drawRegionMenu();
   void drawScreenWindow();
   void drawStatusWindow();
   void drawSoundWindow();

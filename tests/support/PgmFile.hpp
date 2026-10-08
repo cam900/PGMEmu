@@ -44,6 +44,27 @@ void poke32( std::vector<std::uint8_t>& bytes, std::size_t at, std::uint32_t val
 std::vector<std::uint8_t> asic3RegionBlock( std::uint32_t defaultRegion,
                                             std::vector<std::pair<std::uint32_t, std::uint32_t>> const& regions );
 
+/// A region block of the ASIC27 kind: where the region is patched, and (four-cc, value) pairs.
+std::vector<std::uint8_t> asic27RegionBlock( std::uint16_t patchType,
+                                             std::uint16_t patchOffset,
+                                             std::vector<std::pair<std::uint32_t, std::uint32_t>> const& regions );
+
+/// A region block of the IGS025 kind: (four-cc, value) pairs.
+std::vector<std::uint8_t> igs025RegionBlock( std::vector<std::pair<std::uint32_t, std::uint32_t>> const& regions );
+
+/// One table of an I25 block: its region value, its game id, and every byte of
+/// its 0xEC filled with `fill` plus its index.
+struct Igs025TableSpec
+{
+  std::uint8_t region{};
+  std::uint32_t gameId{};
+  std::uint8_t fill{};
+};
+
+/// An I25 block (§3.1): the variant, the default region and the tables.
+std::vector<std::uint8_t>
+igs025Block( std::uint8_t variant, std::uint8_t defaultRegion, std::vector<Igs025TableSpec> const& tables );
+
 /// A four-character code as the format holds it: the first character most significant.
 consteval std::uint32_t fourCc( std::string_view text )
 {

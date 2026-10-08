@@ -13,8 +13,16 @@ namespace
 
 Error loadError( LoadFailure const& failure )
 {
-  return Error{ .code = failure.kind == LoadFailure::Kind::UNKNOWN_GAME ? "unknown_game" : "load_failed",
-                .message = failure.message };
+  switch ( failure.kind )
+  {
+  case LoadFailure::Kind::UNKNOWN_GAME:
+    return Error{ .code = "unknown_game", .message = failure.message };
+  case LoadFailure::Kind::UNKNOWN_REGION:
+    return Error{ .code = "unknown_region", .message = failure.message };
+  case LoadFailure::Kind::LOAD_FAILED:
+    break;
+  }
+  return Error{ .code = "load_failed", .message = failure.message };
 }
 
 } // namespace
@@ -22,13 +30,15 @@ Error loadError( LoadFailure const& failure )
 void addEmuMethods( Dispatcher& dispatcher, Emulator& emulator )
 {
   dispatcher.add( "emu.status",
-                  info( "The emulator's version, the loaded game and the emulated time: master ticks (50 MHz) and "
-                        "frames since power-up." ),
+                  info( "The emulator's version, the loaded game, the region it runs as, and the emulated time: "
+                        "master ticks (50 MHz) and frames since power-up." ),
                   [&emulator]( Json const& /*params*/ ) -> Outcome
                   {
                     auto const game = emulator.gameName();
+                    auto const region = emulator.region();
                     Json status{ { "version", versionString() },
-                                 { "game_name", game ? Json( *game ) : Json( nullptr ) } };
+                                 { "game_name", game ? Json( *game ) : Json( nullptr ) },
+                                 { "region", region ? Json( *region ) : Json( nullptr ) } };
                     if ( machine::Machine const* machine = emulator.machine() )
                     {
                       status["total_ticks"] = machine::masterTicks( machine->now() );
@@ -45,7 +55,12 @@ void addEmuMethods( Dispatcher& dispatcher, Emulator& emulator )
                 .type = "string",
                 .description = "A set name, such as orlegend; pgm loads the BIOS alone.",
                 .required = false },
-              { .name = "path", .type = "string", .description = "The path of a .pgm file.", .required = false } } ),
+              { .name = "path", .type = "string", .description = "The path of a .pgm file.", .required = false },
+              { .name = "region",
+                .type = "string",
+                .description = "The region the game runs as: one of the codes emu.cartridge_info lists, such as WRLD "
+                               "or JAPN. Without it the game runs as its image holds.",
+                .required = false } } ),
       [&emulator]( Json const& params ) -> Outcome
       {
         bool const byName = params.contains( "name" );
@@ -59,10 +74,42 @@ void addEmuMethods( Dispatcher& dispatcher, Emulator& emulator )
         {
           return std::unexpected( target.error() );
         }
-        auto const loaded = byName ? emulator.loadGameByName( *target ) : emulator.loadGameFromFile( *target );
+        std::optional<std::string> region;
+        if ( params.contains( "region" ) )
+        {
+          auto const code = requireString( params, "region" );
+          if ( !code )
+          {
+            return std::unexpected( code.error() );
+          }
+          region = *code;
+        }
+        auto const loaded =
+            byName ? emulator.loadGameByName( *target, region ) : emulator.loadGameFromFile( *target, region );
         if ( !loaded )
         {
           return std::unexpected( loadError( loaded.error() ) );
+        }
+        return Json::object();
+      } );
+
+  dispatcher.add(
+      "emu.set_region",
+      info( "Powers the board up again with the loaded game made another region, as loading it with that region "
+            "would.",
+            { { .name = "region",
+                .type = "string",
+                .description = "One of the codes emu.cartridge_info lists, such as WRLD or JAPN." } } ),
+      [&emulator]( Json const& params ) -> Outcome
+      {
+        auto const region = requireString( params, "region" );
+        if ( !region )
+        {
+          return std::unexpected( region.error() );
+        }
+        if ( auto const set = emulator.setRegion( *region ); !set )
+        {
+          return std::unexpected( loadError( set.error() ) );
         }
         return Json::object();
       } );

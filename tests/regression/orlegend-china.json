@@ -1,0 +1,38 @@
+{
+  "description": "Oriental Legend made China: its warning names the country, from ASIC3's region bits.",
+  "steps": [
+    {
+      "method": "emu.load_game",
+      "params": {
+        "name": "orlegend",
+        "region": "CHNA"
+      }
+    },
+    {
+      "method": "emu.reset",
+      "params": {
+        "cycles": 100
+      }
+    },
+    {
+      "method": "emu.run_frames",
+      "params": {
+        "count": 900
+      }
+    },
+    {
+      "checkpoint": "warning"
+    }
+  ],
+  "golden": {
+    "warning": {
+      "frame": 901,
+      "picture": "23995b80",
+      "work_ram": "80470510",
+      "video_ram": "2209a04d",
+      "palette_ram": "e272cb3f",
+      "audio_ram": "aa5463ff",
+      "sound": "fa5f31da"
+    }
+  }
+}

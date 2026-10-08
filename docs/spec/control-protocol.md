@@ -84,6 +84,7 @@ A request that failed:
 | `unknown_method` | No method of that name exists. |
 | `unknown_game` | `emu.load_game` was given a name with no `<name>.pgm` in the ROM directory, or a name that is not a set name. |
 | `load_failed` | A game could not be loaded: the file is not a valid `.pgm` ([pgm-format.md](pgm-format.md)), or the BIOS is missing or wrong. The message names the file and the fault. |
+| `unknown_region` | A region was asked for that the game cannot run as: not a four-character code, not among the image's regions, or without the data its protection needs. The message lists the regions there are. |
 | `no_cartridge` | The method needs a cartridge, and none is loaded. |
 | `not_loaded` | The method needs a running machine, and no game is loaded. |
 | `screenshot_failed` | The picture could not be encoded or written. |
@@ -101,7 +102,7 @@ A request that failed:
 
 `unknown_method`, `unknown_game`, `load_failed`, `invalid_region`, `invalid_signal`,
 `invalid_input` and `bad_request` mean what the simulator means by them. `no_cartridge`, `not_loaded`,
-`invalid_range` and the `capture_` codes are the emulator's own: the simulator does not check a
+`invalid_range`, `unknown_region` and the `capture_` codes are the emulator's own: the simulator does not check a
 range, always has a machine, and captures sound by other methods (§6, `audio.capture_start`).
 
 ## 5. Names shared with the simulator
@@ -117,13 +118,14 @@ unchanged.
 Takes no parameters.
 
 ```json
-{"id":1,"ok":true,"result":{"version":"devel","game_name":"orlegend","total_ticks":844900,"frame":1}}
+{"id":1,"ok":true,"result":{"version":"devel","game_name":"orlegend","region":"WRLD","total_ticks":844900,"frame":1}}
 ```
 
 | Field | Meaning |
 |---|---|
 | `version` | The emulator's version: the release tag it was built from, or `devel`. |
 | `game_name` | The short name of the loaded cartridge, `pgm` when the BIOS alone is loaded, or `null` before anything is. |
+| `region` | The code of the region the game runs as: the one it was loaded or set with, or the one its image holds. `null` when the image has no regions, or holds a value its table does not name. |
 | `total_ticks` | Master ticks (50 MHz) since the machine was powered up by loading the game; absent before a game is loaded. |
 | `frame` | Frame boundaries passed since then (`emu.run_frames`); absent before a game is loaded. |
 
@@ -132,12 +134,13 @@ to exist, under the simulator's names.
 
 ### `emu.load_game` (alias `sim.load_game`)
 
-Loads a game and the BIOS. Exactly one of the two parameters is given:
+Loads a game and the BIOS. Exactly one of `name` and `path` is given:
 
 | Param | Meaning |
 |---|---|
 | `name` | A set name: `<name>.pgm` is taken from the ROM directory. `pgm` loads the BIOS alone. A name holds only letters, digits and underscores. |
 | `path` | The path of a `.pgm` file. |
+| `region` | Optional: the region the game runs as, one of the codes `emu.cartridge_info` lists under `region_info`, such as `JAPN`. Without it the game runs as its image holds: ASIC3's default, the IGS025's default, or what the ARM's internal ROM holds. |
 
 ```json
 {"id":2,"method":"emu.load_game","params":{"name":"orlegend"}}
@@ -154,8 +157,20 @@ The ROM directory and the BIOS sources are given when the emulator is started
 that has each, so a directory with PGMTest's `pgm_p02s.u20` named before `pgm.zip` replaces the
 program and keeps the rest.
 
-Errors: `unknown_game`, `load_failed`, `bad_request`. A load that fails leaves loaded what was
-loaded before it.
+Errors: `unknown_game`, `load_failed`, `unknown_region`, `bad_request`. A load that fails leaves
+loaded what was loaded before it.
+
+### `emu.set_region`
+
+Powers the board up again with the loaded cartridge, its game made another region, as
+`emu.load_game` with `region` would.
+
+| Param | Meaning |
+|---|---|
+| `region` | One of the codes `emu.cartridge_info` lists under `region_info`. |
+
+Errors: `unknown_region` (the BIOS alone, or nothing, is loaded, or the game has no such region),
+`bad_request`. A region refused leaves the game running undisturbed.
 
 ### `emu.cartridge_info`
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
@@ -76,6 +77,15 @@ struct Region
 /// The four characters of `agnosticId`, most significant first: `WRLD`.
 std::string fourCc( std::uint32_t agnosticId );
 
+/// The agnostic id `code` spells, its first character most significant, or
+/// nothing when it is not four characters.
+std::optional<std::uint32_t> agnosticIdOf( std::string_view code );
+
+/// RegionInfo::patchType's values: where an ASIC27's internal ROM holds its
+/// region, as a big-endian word or as a byte.
+inline constexpr std::uint16_t ASIC27_PATCH_BE16 = 0;
+inline constexpr std::uint16_t ASIC27_PATCH_BYTE = 1;
+
 struct RegionInfo
 {
   RegionScheme scheme{};
@@ -85,6 +95,28 @@ struct RegionInfo
   std::uint16_t patchOffset{};
   /// ASIC3 only: the region the game runs as unless told otherwise.
   std::uint32_t defaultRegion{};
+};
+
+/// How an IGS025 answers in one region: PGMBuilder's I25 block,
+/// docs/spec/pgm-format.md §3.1.
+struct Igs025Table
+{
+  /// The region value this table is for, as RegionInfo's regions give it.
+  std::uint8_t region{};
+  /// What the chip reports as the game: its first byte in the most
+  /// significant place, as the block holds it.
+  std::uint32_t gameId{};
+  std::array<std::uint8_t, 0xec> data{};
+};
+
+struct Igs025Settings
+{
+  /// Which game's chip: PGMBuilder's numbering, 1 Dragon World 3 and 2 The
+  /// Killing Blade among them.
+  std::uint8_t variant{};
+  /// The region the game runs as unless told otherwise.
+  std::uint8_t defaultRegion{};
+  std::vector<Igs025Table> tables;
 };
 
 /// One ROM of the cartridge: the bytes, and the address they are mapped from.
@@ -115,6 +147,25 @@ public:
   [[nodiscard]] Hardware hardware() const;
   [[nodiscard]] std::optional<RegionInfo> const& regionInfo() const;
 
+  /// The I25 block, read, when the cartridge has one.
+  [[nodiscard]] std::optional<Igs025Settings> const& igs025Settings() const;
+
+  /// The I25 block's table for region value `region`: the first that names
+  /// it, as a block may name one twice; null when none does.
+  [[nodiscard]] Igs025Table const* igs025Table( std::uint32_t region ) const;
+
+  /// The region value the image hands its game when no other is chosen, as
+  /// its protection holds it: ASIC3's default, the IGS025's default, or what
+  /// ASIC27's internal ROM holds where its region is patched. Nothing when the
+  /// image has no region block, or no internal ROM to read an ASIC27's from.
+  [[nodiscard]] std::optional<std::uint32_t> ownRegion() const;
+
+  /// The region value that makes the game the region `agnosticId` names, a
+  /// four-character code such as `JAPN`, or why the image cannot be run as it:
+  /// it has no regions, the code is not among them, or, for an IGS025, no
+  /// table of the I25 block is for it.
+  [[nodiscard]] std::expected<std::uint32_t, std::string> regionValue( std::uint32_t agnosticId ) const;
+
   /// Every ROM, in the order the file lists them.
   [[nodiscard]] std::vector<Rom> roms() const;
 
@@ -143,6 +194,7 @@ private:
   Hardware mHardware{};
   std::vector<Entry> mEntries;
   std::optional<RegionInfo> mRegionInfo;
+  std::optional<Igs025Settings> mIgs025Settings;
 };
 
 } // namespace pgm::cart
