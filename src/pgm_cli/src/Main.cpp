@@ -9,16 +9,21 @@
 #include "pgm/control/Dispatcher.hpp"
 #include "pgm/server/JsonLinesServer.hpp"
 #include "pgm/server/McpServer.hpp"
+#include "pgm/server/TcpLineServer.hpp"
 
 #include <CLI/CLI.hpp>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
+#include <chrono>
+#include <cstdint>
 #include <cstdio>
 #include <exception>
 #include <filesystem>
 #include <iostream>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -55,9 +60,15 @@ int run( int argc, char** argv )
                   "Where state.save and state.load keep save states given by name; the working directory if not given" )
       ->check( CLI::ExistingDirectory );
 
-  bool server = false;
+  std::string serverSpec;
   auto* const serverFlag =
-      app.add_flag( "--server", server, "Answer JSON-lines requests on stdin, one response per line on stdout" );
+      app.add_option( "--server",
+                      serverSpec,
+                      "Answer JSON-lines requests: on stdin and stdout, or with tcp:PORT on 127.0.0.1:PORT until "
+                      "the process is ended" )
+          ->expected( 0, 1 )
+          ->check( []( std::string const& value )
+                   { return value.starts_with( "tcp:" ) ? std::string{} : std::string{ "expected tcp:PORT" }; } );
   bool mcp = false;
   auto* const mcpFlag =
       app.add_flag( "--mcp", mcp, "Serve the Model Context Protocol on stdio, for an agent" )->excludes( serverFlag );
@@ -78,6 +89,7 @@ int run( int argc, char** argv )
   // stderr; a client parsing stdout must never meet one.
   spdlog::set_default_logger( spdlog::stderr_color_mt( "pgmemu" ) );
 
+  bool const server = serverFlag->count() > 0;
   if ( !server && !mcp )
   {
     std::cerr << app.help();
@@ -92,6 +104,23 @@ int run( int argc, char** argv )
     spdlog::info( "pgmemu-cli {} serving MCP on stdio", pgm::versionString() );
     transport.serve( std::cin, std::cout );
     return 0;
+  }
+  if ( !serverSpec.empty() )
+  {
+    // Connections are served on threads of their own; the dispatcher answers
+    // one request at a time.
+    std::mutex oneAtATime;
+    pgm::server::TcpLineServer const transport{ static_cast<std::uint16_t>( std::stoul( serverSpec.substr( 4 ) ) ),
+                                                [&]( pgm::control::Json const& request )
+                                                {
+                                                  std::scoped_lock const lock{ oneAtATime };
+                                                  return dispatcher.handle( request );
+                                                } };
+    spdlog::info( "pgmemu-cli {} serving JSON-lines on 127.0.0.1:{}", pgm::versionString(), transport.port() );
+    for ( ;; )
+    {
+      std::this_thread::sleep_for( std::chrono::hours{ 1 } );
+    }
   }
   pgm::server::JsonLinesServer const transport{ dispatcher };
   spdlog::info( "pgmemu-cli {} serving JSON-lines on stdio", pgm::versionString() );

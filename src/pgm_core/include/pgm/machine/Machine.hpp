@@ -215,9 +215,9 @@ public:
   void setHostInputs( std::array<std::uint16_t, 4> const& pressed );
 
   [[nodiscard]] std::span<std::uint8_t const> workRam() const;
-  /// Replaces the work RAM, which the board keeps powered by its battery: what
-  /// `nvram.load` does. `bytes` is 128 KB in 68000 byte order.
-  void setWorkRam( std::span<std::uint8_t const> bytes );
+  /// Writes `bytes` into work RAM from `offset` on, in 68000 byte order, as a
+  /// debugger or `nvram.load` does; what does not fit is left out.
+  void writeWorkRam( std::size_t offset, std::span<std::uint8_t const> bytes );
   [[nodiscard]] std::span<std::uint8_t const> videoRam() const;
   [[nodiscard]] std::span<std::uint8_t const> paletteRam() const;
   [[nodiscard]] std::span<std::uint8_t const> z80Ram() const;

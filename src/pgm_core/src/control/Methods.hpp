@@ -24,6 +24,7 @@ void addVideoMethods( Dispatcher& dispatcher, Emulator& emulator );
 void addAudioMethods( Dispatcher& dispatcher, Emulator& emulator );
 void addInputMethods( Dispatcher& dispatcher, Emulator& emulator );
 void addStateMethods( Dispatcher& dispatcher, Emulator& emulator );
+void addTestMethods( Dispatcher& dispatcher, Emulator& emulator );
 
 Error badRequest( std::string message );
 

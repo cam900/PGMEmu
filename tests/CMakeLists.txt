@@ -6,6 +6,7 @@ add_executable( pgm_tests
   control/AudioAndInputTest.cpp
   control/DispatcherTest.cpp
   control/LoadAndMemoryTest.cpp
+  control/TestMethodsTest.cpp
   control/VideoMethodsTest.cpp
   cpu/M68kSingleStepTest.cpp
   cpu/Z80SingleStepTest.cpp

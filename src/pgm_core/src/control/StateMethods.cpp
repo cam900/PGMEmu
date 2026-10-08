@@ -267,7 +267,7 @@ void addStateMethods( Dispatcher& dispatcher, Emulator& emulator )
                     {
                       ram[at] = bytes[at ^ 1U];
                     }
-                    machine->setWorkRam( ram );
+                    machine->writeWorkRam( 0, ram );
                     return Json::object();
                   } );
 }

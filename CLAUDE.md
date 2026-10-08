@@ -24,6 +24,15 @@ build/debug/src/pgm_cli/pgmemu-cli --server --bios ../ROMS/pgm.zip --rom-dir rom
 build/debug/src/pgm_cli/pgmemu-cli --mcp --bios ../ROMS/pgm.zip --rom-dir roms   # MCP for an agent; --state-dir DIR for save states
 ```
 
+An agent drives the emulator with the project skill, `.claude/skills/pgmemu/SKILL.md`: a headless
+server that keeps its state, and a request per command.
+
+```sh
+build/release/src/pgm_cli/pgmemu-cli --server tcp:7701 --bios ../ROMS/pgm.zip --rom-dir roms &
+scripts/pgmemu.py emu.load_game name=orlegend
+scripts/pgmemu.py video.screenshot path=build/shot.png
+```
+
 ```sh
 ./scripts/compare-with-rtl.py --frames 60 600 --pictures   # memory and pictures against the RTL simulation
 ./scripts/compare-with-rtl.py --frames 800 --regions AUDIO_RAM --audio   # the Z80's RAM and the sound
@@ -64,6 +73,7 @@ session takes one milestone by name.
 | `libextern/` | Third-party code carried in the tree, unmodified. Not formatted, not tidied. `libextern/README.md` is the inventory. |
 | `cmake/` | `Warnings.cmake`, `Dependencies.cmake`. |
 | `docs/` | See `docs/README.md`; it is the index and the rulebook. |
+| `.claude/skills/pgmemu/` | The project skill an agent drives the emulator with. |
 
 ## The workspace around it
 

@@ -17,22 +17,6 @@ A session takes work by saying *build M<n> of docs/plans/milestones.md*. Every t
 Every milestone ends with an **exit** condition that can be checked without a person looking at
 a screen. That is why the control API and the headless runner come before most of the hardware.
 
-## M5: The agent's toolset
-
-*Delivers:*
-
-- MCP over stdio in `pgmemu-cli` and over HTTP in `pgmemu`, with tools generated from the method
-  table and screenshots returned as images.
-- JSON-lines over TCP attached to the GUI.
-- Save states, NVRAM, `state.*` and `nvram.*`.
-- Trace ring and watchpoints.
-- Debugger windows for the video: layer toggles, tile and tilemap viewers, the sprite list.
-- `test.*`.
-- A Claude Code project skill for booting, running, inspecting and comparing with the RTL.
-
-*Exit:* a fresh session given only the skill boots orlegend headless, stops at a breakpoint,
-reads the sprite list and returns a screenshot.
-
 ## M6: The regression suite
 
 *Delivers:*

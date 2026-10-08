@@ -16,7 +16,11 @@ emulator matches it and what it adds.
 - stdout carries responses and nothing else. Logs go to stderr.
 - Serving ends when stdin ends.
 
-`pgmemu --server tcp:PORT` serves the same lines on TCP, on 127.0.0.1 only, while its window is
+`pgmemu-cli --server tcp:PORT` serves the same lines on TCP instead, on 127.0.0.1 only, until the
+process is ended; requests from all connections are answered one at a time. It is how a script
+or an agent keeps one emulator across many short commands (`scripts/pgmemu.py`).
+
+`pgmemu --server tcp:PORT` serves them from the desktop application while its window is
 open. Each connection is a session of its own; requests from all of them, and from the window,
 are answered in turn on the emulation thread, on the machine on screen
 ([0012](../decisions/0012-network-transports.md)).
@@ -93,6 +97,7 @@ A request that failed:
 | `state_failed` | A save state could not be written or read. |
 | `state_mismatch` | A save state is not one of the game loaded, or not of this build's format. |
 | `nvram_failed` | An NVRAM file could not be written, or is not 128 KB. |
+| `debug_link_timeout` | The test ROM did not publish its debug link, or did not take the bytes, in the time given. |
 
 `unknown_method`, `unknown_game`, `load_failed`, `invalid_region`, `invalid_signal`,
 `invalid_input` and `bad_request` mean what the simulator means by them. `no_cartridge`, `not_loaded`,
@@ -546,3 +551,33 @@ an image is written there as a PNG; without it, it comes back as a PNG in `png_b
 `format` `rgba`, as raw RGBA rows in `rgba_base64`. `width` and `height` come back either way.
 
 Errors: `not_loaded`, `bad_request`, `screenshot_failed`.
+
+### `test.status`
+
+The block PGMTest's pages publish their state in, at the top of work RAM, 0x81F000: a 16-bit
+magic naming the page, then words whose meaning is the page's own (its `TestStatus` in
+`../PGMTest/src/pages/`).
+
+```json
+{"id":11,"ok":true,"result":{"address":8515584,"magic":22100,"name":"VT","words":[22100,0,0,1,0,0,5,0,8192,0,0,0]}}
+```
+
+`words` asks for how many words, the magic included: 32 if left out, at most 2048. `name` is the
+magic as two characters.
+
+### `debug_link.start`, `debug_link.write`, `debug_link.read`, `debug_link.stop` (as the simulator has them)
+
+PGMTest's debug link, as the simulator serves it: the test ROM publishes a block in work RAM,
+marked `RFIF`, with a ring of bytes each way, and the link attaches to it and marks it active.
+The ROM mailbox the board's PicoROM uses is not emulated, so `debug_link.start`'s `comms_addr`
+is taken and not used.
+
+- `debug_link.write {data_hex, timeout_cycles_per_byte}` runs the machine until the test ROM has
+  published its block and the bytes fit in its ring.
+- `debug_link.read {max_bytes, min_bytes, timeout_cycles}` runs it until at least `min_bytes`
+  have come, or the time is up, and answers `{"data_hex", "available"}`: at most `max_bytes`, and
+  how many more are waiting.
+- `debug_link.stop` marks the block inactive.
+
+Timeouts are master ticks, 2000000 if left out. Errors: `not_loaded`, `debug_link_timeout`,
+`bad_request`.

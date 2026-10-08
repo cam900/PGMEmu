@@ -5,6 +5,7 @@
 #include "pgm/Emulator.hpp"
 #include "pgm/control/Dispatcher.hpp"
 
+#include <algorithm>
 #include <string>
 
 using pgm::control::Dispatcher;
@@ -22,7 +23,7 @@ Json call( Dispatcher const& dispatcher, std::string const& method, Json params 
 /// The decoded length of base64 text.
 std::size_t base64Bytes( std::string const& text )
 {
-  std::size_t const padding = text.ends_with( "==" ) ? 2 : ( text.ends_with( "=" ) ? 1 : 0 );
+  auto const padding = static_cast<std::size_t>( std::ranges::count( text, '=' ) );
   return ( ( text.size() / 4 ) * 3 ) - padding;
 }
 

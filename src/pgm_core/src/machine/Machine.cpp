@@ -480,9 +480,15 @@ void Machine::setHostInputs( std::array<std::uint16_t, 4> const& pressed )
   mParts->applyInputs();
 }
 
-void Machine::setWorkRam( std::span<std::uint8_t const> bytes )
+void Machine::writeWorkRam( std::size_t offset, std::span<std::uint8_t const> bytes )
 {
-  std::ranges::copy( bytes.first( std::min( bytes.size(), mParts->workRam.size() ) ), mParts->workRam.begin() );
+  auto& ram = mParts->workRam;
+  if ( offset >= ram.size() )
+  {
+    return;
+  }
+  std::size_t const count = std::min( bytes.size(), ram.size() - offset );
+  std::ranges::copy( bytes.first( count ), ram.begin() + static_cast<std::ptrdiff_t>( offset ) );
 }
 
 std::span<std::uint8_t const> Machine::workRam() const
