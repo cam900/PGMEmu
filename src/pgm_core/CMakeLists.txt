@@ -17,6 +17,9 @@ add_library( pgm_core
   src/control/StateMethods.cpp
   src/control/TestMethods.cpp
   src/control/VideoMethods.cpp
+  src/cpu/Arm7.cpp
+  src/cpu/Arm7Disassembler.cpp
+  src/cpu/Arm7Thumb.cpp
   src/cpu/MoiraConfigCheck.cpp
   src/io/RomSources.cpp
   src/machine/Asic3.cpp

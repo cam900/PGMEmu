@@ -45,12 +45,13 @@ build/release/src/pgm_cli/pgmemu-cli --batch tests/regression/orlegend.json --bi
 ./scripts/benchmark.sh                              # headless speed of every game
 ./scripts/fetch-680x0-tests.sh                      # the SingleStepTests 68000 suite
 ./scripts/fetch-z80-tests.sh                        # the SingleStepTests Z80 suite, 1.4 GB to fetch
-build/release/tests/pgm_tests "[cpu-suite]"         # Moira and z80.h against them, about 35 s
+./scripts/fetch-arm7tdmi-tests.sh                   # the SingleStepTests ARM7TDMI suite, 0.9 GB
+build/release/tests/pgm_tests "[cpu-suite]"         # Moira, z80.h and our ARM7 against them, about 40 s
 ```
 
-Tests tagged `[roms]` read `roms/` and `../ROMS`, and `[cpu-suite]` reads
-`build/tools/680x0/` and `build/tools/z80/`; both skip when their data is absent. The comparison with
-the RTL runs the simulator at about 1.4 frames per second. Do not use the PGMBuilder binary in
+Tests tagged `[roms]` read `roms/` and `../ROMS`, and `[cpu-suite]` reads `build/tools/680x0/`,
+`build/tools/z80/` and `build/tools/arm7tdmi/`; both skip when their data is absent. The comparison
+with the RTL runs the simulator at about 1.4 frames per second. Do not use the PGMBuilder binary in
 `../PGMBuilder/out`: it may predate the format version this emulator reads.
 
 ```sh

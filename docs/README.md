@@ -59,6 +59,7 @@ it, never "at the end of the session".
 - [0010: The ROM cache's timing is not reproduced](decisions/0010-rom-timing.md)
 - [0011: Layers are drawn a line at a time, sprites a frame at a time](decisions/0011-video-is-drawn-by-line-and-by-frame.md)
 - [0012: MCP over HTTP is served by cpp-httplib, JSON-lines over TCP by sockets of our own](decisions/0012-network-transports.md)
+- [0013: The ARM7TDMI is our own, written from ARM's manual](decisions/0013-arm7tdmi-core.md)
 
 ### Hardware
 - [Differences](hardware/differences.md): where the emulator departs from the RTL, and the RTL from the board

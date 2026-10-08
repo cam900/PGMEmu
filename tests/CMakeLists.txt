@@ -9,6 +9,8 @@ add_executable( pgm_tests
   control/LoadAndMemoryTest.cpp
   control/TestMethodsTest.cpp
   control/VideoMethodsTest.cpp
+  cpu/Arm7SingleStepTest.cpp
+  cpu/Arm7Test.cpp
   cpu/M68kSingleStepTest.cpp
   cpu/Z80SingleStepTest.cpp
   io/RomSourcesTest.cpp
@@ -38,7 +40,8 @@ target_compile_definitions( pgm_tests
   PRIVATE PGM_TEST_PGM_DIR="${CMAKE_SOURCE_DIR}/roms"
           PGM_TEST_ROMS_DIR="${CMAKE_SOURCE_DIR}/../ROMS"
           PGM_TEST_680X0_DIR="${CMAKE_SOURCE_DIR}/build/tools/680x0"
-          PGM_TEST_Z80_DIR="${CMAKE_SOURCE_DIR}/build/tools/z80" )
+          PGM_TEST_Z80_DIR="${CMAKE_SOURCE_DIR}/build/tools/z80"
+          PGM_TEST_ARM7TDMI_DIR="${CMAKE_SOURCE_DIR}/build/tools/arm7tdmi" )
 
 # miniz's and Moira's headers only: the suite writes zips with one and runs the
 # 68000 suite on the other, and their code arrives with pgm_core, which links
