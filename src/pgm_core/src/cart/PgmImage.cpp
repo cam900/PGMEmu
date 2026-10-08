@@ -17,8 +17,8 @@ namespace
 
 // Offsets and sizes of docs/spec/pgm-format.md §2.
 constexpr std::size_t HEADER_SIZE = 1024;
-constexpr std::size_t INFO_SIZE = 76;
-constexpr std::uint16_t VERSION = 0x0021;
+constexpr std::size_t INFO_SIZE = 80;
+constexpr std::uint16_t VERSION = 0x0022;
 constexpr std::array<std::uint8_t, 6> MAGIC{ 'I', 'G', 'S', 'P', 'G', 'M' };
 
 constexpr std::size_t VERSION_AT = 6;
@@ -34,6 +34,10 @@ constexpr std::size_t HARDWARE_AT = 44;
 constexpr std::size_t ENTRIES_AT = 52;
 constexpr std::size_t ENTRIES_COUNT_AT = 56;
 constexpr std::size_t REGION_OFFSET_AT = 72;
+constexpr std::size_t FLAGS_AT = 76;
+
+// Bits of the flags, §2.2.
+constexpr std::uint32_t FLAG_VERTICAL = 1U << 0U;
 
 constexpr std::size_t ENTRY_SIZE = 16;
 constexpr std::size_t REGION_SIZE = 8;
@@ -251,6 +255,18 @@ std::string_view nameOf( RegionScheme scheme )
   return "unknown";
 }
 
+std::string_view nameOf( Orientation orientation )
+{
+  switch ( orientation )
+  {
+  case Orientation::HORIZONTAL:
+    return "horizontal";
+  case Orientation::VERTICAL:
+    return "vertical";
+  }
+  return "?";
+}
+
 std::string fourCc( std::uint32_t agnosticId )
 {
   return { static_cast<char>( agnosticId >> 24U ),
@@ -287,7 +303,7 @@ std::expected<PgmImage, std::string> PgmImage::parse( std::vector<std::uint8_t> 
     return std::unexpected( std::string{ "not a .pgm file: the magic is not IGSPGM" } );
   }
 
-  // The one big-endian field of the header: BCD, so that 0x0021 reads as 00.21.
+  // The one big-endian field of the header: BCD, so that 0x0022 reads as 00.22.
   auto const version = static_cast<std::uint16_t>( ( header[VERSION_AT] << 8U ) | header[VERSION_AT + 1] );
   if ( version != VERSION )
   {
@@ -305,6 +321,10 @@ std::expected<PgmImage, std::string> PgmImage::parse( std::vector<std::uint8_t> 
   image.mShortName = fixedString( header, SHORT_NAME_AT, SHORT_NAME_SIZE );
   image.mYear = fixedString( header, YEAR_AT, YEAR_SIZE );
   image.mHardware = static_cast<Hardware>( readLe32( header, HARDWARE_AT ) );
+  // Flags this reader does not know are left alone: they say how to show or
+  // file a game, not how to run it.
+  image.mOrientation =
+      ( readLe32( header, FLAGS_AT ) & FLAG_VERTICAL ) != 0 ? Orientation::VERTICAL : Orientation::HORIZONTAL;
 
   auto manufacturer = pointedString( header, MANUFACTURER_AT, "manufacturerLongName" );
   auto asciiName = pointedString( header, ASCII_LONG_NAME_AT, "asciiLongName" );
@@ -431,6 +451,11 @@ std::string const& PgmImage::year() const
 Hardware PgmImage::hardware() const
 {
   return mHardware;
+}
+
+Orientation PgmImage::orientation() const
+{
+  return mOrientation;
 }
 
 std::optional<RegionInfo> const& PgmImage::regionInfo() const

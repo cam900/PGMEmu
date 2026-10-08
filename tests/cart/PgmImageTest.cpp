@@ -10,6 +10,7 @@
 #include <vector>
 
 using pgm::cart::Hardware;
+using pgm::cart::Orientation;
 using pgm::cart::PgmImage;
 using pgm::cart::RegionScheme;
 using pgm::cart::RomType;
@@ -59,7 +60,7 @@ TEST_CASE( "a .pgm is read: its header fields and every ROM, in file order", "[c
   PgmFile const file = orlegendLike();
 
   auto const image = valueOf( PgmImage::parse( pgm::test::write( file ) ) );
-  REQUIRE( image.version() == 0x0021 );
+  REQUIRE( image.version() == 0x0022 );
   REQUIRE( image.shortName() == "orlegend" );
   REQUIRE( image.year() == "1997" );
   REQUIRE( image.manufacturer() == "IGS" );
@@ -77,6 +78,20 @@ TEST_CASE( "a .pgm is read: its header fields and every ROM, in file order", "[c
   }
   REQUIRE( valueOf( image.rom( RomType::TLE ) ).mapping == 0x180000 );
   REQUIRE_FALSE( image.rom( RomType::EXT ).has_value() );
+}
+
+TEST_CASE( "the flags say whether the game's monitor stood on its side", "[cart]" )
+{
+  PgmFile file = orlegendLike();
+  REQUIRE( valueOf( PgmImage::parse( pgm::test::write( file ) ) ).orientation() == Orientation::HORIZONTAL );
+
+  file.vertical = true;
+  auto bytes = pgm::test::write( file );
+  REQUIRE( valueOf( PgmImage::parse( bytes ) ).orientation() == Orientation::VERTICAL );
+
+  // A flag the reader does not know is no reason to refuse the file.
+  poke32( bytes, 76, 0x80000001 );
+  REQUIRE( valueOf( PgmImage::parse( bytes ) ).orientation() == Orientation::VERTICAL );
 }
 
 TEST_CASE( "a short name that fills its 16 bytes needs no NUL", "[cart]" )
@@ -142,35 +157,35 @@ TEST_CASE( "a file that breaks the format is refused with the field at fault nam
   SECTION( "a ROM type the format does not define" )
   {
     auto bytes = good;
-    poke32( bytes, 76, 10 );
+    poke32( bytes, 80, 10 );
     REQUIRE( errorOf( bytes ).contains( "type 10" ) );
   }
 
   SECTION( "a ROM type given twice" )
   {
     auto bytes = good;
-    poke32( bytes, 76 + 16, 1 );
+    poke32( bytes, 80 + 16, 1 );
     REQUIRE( errorOf( bytes ).contains( "repeats type PRG" ) );
   }
 
   SECTION( "a ROM that runs past the end of the file" )
   {
     auto bytes = good;
-    poke32( bytes, 76 + 12, 0x10000000 );
+    poke32( bytes, 80 + 12, 0x10000000 );
     REQUIRE( errorOf( bytes ).contains( "PRG entry spans" ) );
   }
 
   SECTION( "a ROM that starts inside the header" )
   {
     auto bytes = good;
-    poke32( bytes, 76 + 8, 512 );
+    poke32( bytes, 80 + 8, 512 );
     REQUIRE( errorOf( bytes ).contains( "PRG entry spans" ) );
   }
 
   SECTION( "an empty ROM" )
   {
     auto bytes = good;
-    poke32( bytes, 76 + 12, 0 );
+    poke32( bytes, 80 + 12, 0 );
     REQUIRE( errorOf( bytes ).contains( "PRG entry is empty" ) );
   }
 

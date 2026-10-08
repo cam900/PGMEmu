@@ -1,6 +1,6 @@
 # 0016: Vertical games are known by their set's name
 
-**Status:** accepted
+**Status:** superseded by [0017](0017-vertical-games-by-image-flag.md)
 
 ## Context
 

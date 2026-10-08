@@ -195,7 +195,7 @@ for a file.
   "long_name": "Oriental Legend / Xiyou Shi E Zhuan (ver. 126)",
   "manufacturer": "IGS",
   "year": "1997",
-  "format_version": "0021",
+  "format_version": "0022",
   "hardware": "asic3",
   "orientation": "horizontal",
   "roms": [ { "type": "PRG", "mapping": 1048576, "size": 2097152, "crc32": "d5e93543" } ],
@@ -205,9 +205,8 @@ for a file.
 
 - `hardware` takes the names in [pgm-format.md §2.1](pgm-format.md#21-hardware).
 - `orientation` is `vertical` for a game whose monitor stood on its side, which draws its picture
-  lying with its top at the left: the frame is seen upright turned a quarter anticlockwise. The
-  image does not say; it is known by the set's name
-  ([0016](../decisions/0016-vertical-games-by-set-name.md)).
+  lying with its top at the left: the frame is seen upright turned a quarter anticlockwise. It is
+  the image's flag ([pgm-format.md §2.2](pgm-format.md#22-flags)).
 - `region_info` is `null` when the image has no region block.
 - `patch_type` and `patch_offset` appear for the `asic27` scheme, and `default_region` for the
   `asic3` scheme.

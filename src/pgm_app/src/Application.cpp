@@ -285,6 +285,12 @@ void Application::loadGame( std::string const& nameOrPath )
   {
     mLastError += "; choose pgm.zip with File > Choose BIOS";
   }
+  // Followed afresh, the same game loaded again too: its screen is shown as
+  // its monitor stood, whichever way it was turned.
+  if ( mLastError.empty() )
+  {
+    mFollowedGame = "";
+  }
   mGameCheckIn = 0;
 }
 
@@ -557,7 +563,8 @@ void Application::drawDisplayMenu()
   }
   ImGui::Separator();
   changed |= ImGui::MenuItem( "Whole multiples only", nullptr, &mDisplay.integerScale );
-  changed |= ImGui::MenuItem( "Vertical games upright", nullptr, &mDisplay.rotateVertical );
+  // Not kept: the next game is shown as its monitor stood.
+  ImGui::MenuItem( "Vertical", nullptr, &mVertical );
   // A slider changes the picture as it is dragged, and is kept when let go.
   // Its ID is its own: the Scanlines preset's menu item has the same label.
   auto const slider = [&changed]( char const* label, float& value )
@@ -594,9 +601,9 @@ void Application::drawScreenWindow()
   {
     // Sized in the display's pixels, which the shader draws, centred. The
     // picture is 448 by 224 shaped 4:3, as the board's monitor showed it;
-    // scaled by whole multiples of its height, or as large as fits. A vertical
-    // game's is shown upright, 3:4: drawn as any other, then turned.
-    bool const upright = mVertical && mDisplay.rotateVertical;
+    // scaled by whole multiples of its height, or as large as fits. Shown
+    // vertical, it is 3:4: drawn as any other, then turned upright.
+    bool const upright = mVertical;
     float const pixelsPerPoint = ImGui::GetIO().DisplayFramebufferScale.y;
     ImVec2 const available = ImGui::GetContentRegionAvail();
     float const baseWidth = SCREEN_HEIGHT * 4.0F / 3.0F;

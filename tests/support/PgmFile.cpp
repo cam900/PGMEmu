@@ -10,7 +10,7 @@ namespace
 {
 
 constexpr std::size_t HEADER_SIZE = 1024;
-constexpr std::size_t INFO_SIZE = 76;
+constexpr std::size_t INFO_SIZE = 80;
 constexpr std::size_t ALIGNMENT = 512;
 
 void putString( std::vector<std::uint8_t>& bytes, std::size_t at, std::string const& text, std::size_t size )
@@ -47,11 +47,12 @@ std::vector<std::uint8_t> write( PgmFile const& file )
   std::vector<std::uint8_t> bytes( HEADER_SIZE, 0 );
   putString( bytes, 0, "IGSPGM", 6 );
   bytes[6] = 0x00; // version, big-endian
-  bytes[7] = 0x21;
+  bytes[7] = 0x22;
   poke32( bytes, 8, INFO_SIZE );
   putString( bytes, 12, file.shortName, 16 );
   putString( bytes, 40, file.year, 4 );
   poke32( bytes, 44, file.hardware );
+  poke32( bytes, 76, file.vertical ? 1 : 0 );
 
   // ROM data follows the header, each section at a multiple of 512.
   std::size_t cursor = INFO_SIZE;

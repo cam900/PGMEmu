@@ -2,12 +2,13 @@
 
 This is what the emulator accepts as a cartridge. The format belongs to PGMBuilder
 (`../PGMBuilder/pgm.hpp`, writer in `MameImage.cpp`), which defines it. This document states it
-from the reader's side, as of PGMBuilder commit `028194b` (2026-09-18), and says what the reader
+from the reader's side, as of PGMBuilder commit `26ebacd` (2026-10-08), and says what the reader
 refuses. Where the two disagree, PGMBuilder's source is the authority and this document is
 corrected.
 
-Only version 0x0021 is read. Older images, including those from PGMBuilder binaries built before
-September 2026 (version 0x0020), must be rebuilt (`scripts/make-pgm.sh`).
+Only version 0x0022 is read. Older images, including those from PGMBuilder binaries built before
+October 2026 (version 0x0021, which has no flags, and 0x0020), must be rebuilt
+(`scripts/make-pgm.sh`).
 
 ## 1. Layout
 
@@ -24,8 +25,8 @@ motherboard's ROMs come from `pgm.zip` or a directory.
 | Offset | Size | Field | Read as |
 |---|---|---|---|
 | 0 | 6 | magic | `IGSPGM`; anything else is refused |
-| 6 | 2 | version | **Big-endian** BCD, `00 21` for 00.21; anything else is refused |
-| 8 | 4 | infoSize | 76; anything else is refused |
+| 6 | 2 | version | **Big-endian** BCD, `00 22` for 00.22; anything else is refused |
+| 8 | 4 | infoSize | 80; anything else is refused |
 | 12 | 16 | shortName | The MAME set name, NUL-padded; no NUL when it is 16 characters |
 | 28 | 4 | manufacturerLongName | Offset of a NUL-terminated string, or 0 for none |
 | 32 | 4 | asciiLongName | Offset of the full title when it is ASCII, or 0 |
@@ -39,6 +40,7 @@ motherboard's ROMs come from `pgm.zip` or a directory.
 | 64 | 4 | screenshotOffsets | Always 0; ignored |
 | 68 | 4 | screenshotOffsetsCount | Always 0; ignored |
 | 72 | 4 | regionOffset | Offset of the region block, or 0 for none |
+| 76 | 4 | flags | Bits of §2.2 |
 
 A string offset must point into the header after the info block, at a string that ends before
 byte 1024.
@@ -60,6 +62,15 @@ byte 1024.
 Value 8 is written by PGMBuilder's database (`MameDB.hpp`) though `pgm.hpp` does not name it. A
 value outside the table is kept as read; whether a board can be emulated is the machine's
 decision, not the reader's.
+
+### 2.2 Flags
+
+| Bit | `pgm.hpp` | Set when |
+|---|---|---|
+| 0 | `InfoFlags_Vertical` | The game was made for a monitor turned on its side: it draws its picture lying with its top at the left, to be seen upright turned a quarter anticlockwise. PGMBuilder sets it for the sets MAME draws ROT270 (ddp2, ddp3, ket, espgal and their clones), and for `--vertical` in manual mode |
+
+The other bits are written as zero. A bit the reader does not know is ignored rather than
+refused: the flags say how a game is shown, not how it runs.
 
 ## 3. The entry table
 

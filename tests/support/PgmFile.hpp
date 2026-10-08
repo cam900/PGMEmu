@@ -27,6 +27,8 @@ struct PgmFile
   std::string shortName = "testcart";
   std::string year = "1997";
   std::uint32_t hardware = 0;
+  /// Bit 0 of the flags (§2.2).
+  bool vertical = false;
   std::string manufacturer = "IGS";
   std::string asciiLongName = "Test Cartridge";
   std::vector<PgmRom> roms;
@@ -34,7 +36,7 @@ struct PgmFile
   std::optional<std::vector<std::uint8_t>> regionBlock;
 };
 
-/// The bytes of `file` laid out as PGMBuilder lays out a version 0x0021 image.
+/// The bytes of `file` laid out as PGMBuilder lays out a version 0x0022 image.
 std::vector<std::uint8_t> write( PgmFile const& file );
 
 /// Stores `value` little-endian at `at`, for tests that corrupt a header.

@@ -65,6 +65,19 @@ enum class RegionScheme : std::uint8_t
 
 std::string_view nameOf( RegionScheme scheme );
 
+/// Which way up a game's monitor stood in its cabinet, as the header's flags
+/// say (docs/spec/pgm-format.md §2.2). The board draws 448 by 224 either way;
+/// a vertical game draws its picture lying with its top at the left, to be
+/// seen upright turned a quarter anticlockwise.
+enum class Orientation : std::uint8_t
+{
+  HORIZONTAL,
+  VERTICAL
+};
+
+/// "horizontal" or "vertical".
+std::string_view nameOf( Orientation orientation );
+
 struct Region
 {
   /// One of the four-character codes of docs/spec/pgm-format.md §4.3, such as
@@ -145,6 +158,7 @@ public:
   [[nodiscard]] std::string const& longName() const;
   [[nodiscard]] std::string const& year() const;
   [[nodiscard]] Hardware hardware() const;
+  [[nodiscard]] Orientation orientation() const;
   [[nodiscard]] std::optional<RegionInfo> const& regionInfo() const;
 
   /// The I25 block, read, when the cartridge has one.
@@ -192,6 +206,7 @@ private:
   std::string mLongName;
   std::string mYear;
   Hardware mHardware{};
+  Orientation mOrientation{};
   std::vector<Entry> mEntries;
   std::optional<RegionInfo> mRegionInfo;
   std::optional<Igs025Settings> mIgs025Settings;

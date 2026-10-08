@@ -3,7 +3,6 @@ add_library( pgm_core
   src/PortabilityChecks.cpp
   src/Version.cpp
   src/cart/Bios.cpp
-  src/cart/Orientation.cpp
   src/cart/PgmImage.cpp
   src/control/AudioMethods.cpp
   src/control/Batch.cpp

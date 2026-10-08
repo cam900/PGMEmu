@@ -150,7 +150,8 @@ private:
   /// again what is loaded: a game may be loaded by an agent as well.
   std::optional<std::string> mFollowedGame;
   int mGameCheckIn{};
-  /// Whether the loaded game's monitor stood on its side.
+  /// Whether the screen is shown turned upright, 3:4: as the loaded game's
+  /// monitor stood, until the Display menu turns it the other way.
   bool mVertical{};
   bool mShowImguiDemo{};
 };
