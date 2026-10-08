@@ -21,5 +21,5 @@ a screen. That is why the control API and the headless runner come before most o
 
 *Delivers:*
 
-- Rewind and run-ahead.
+- Run-ahead.
 - A macOS app bundle; CI on macOS and Linux.

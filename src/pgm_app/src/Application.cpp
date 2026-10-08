@@ -144,6 +144,20 @@ Application::Application( SDL_Window* window, SDL_GPUDevice* device, Settings se
     io.IniFilename = nullptr;
   }
 
+  if ( std::ifstream stream{ mSettingsPath }; !mSettingsPath.empty() && stream )
+  {
+    auto json = control::Json::parse( stream, nullptr, false );
+    if ( json.is_object() )
+    {
+      mSettings = std::move( json );
+    }
+  }
+  if ( mSettings.contains( "rewind" ) && mSettings.at( "rewind" ).is_boolean() )
+  {
+    mRewindKept = mSettings.at( "rewind" ).get<bool>();
+  }
+  mEmulation->setRewindKept( mRewindKept );
+
   mInputMap = mInputMapPath.empty() ? InputMap::defaults() : InputMap::load( mInputMapPath );
   if ( !mDisplayPath.empty() )
   {
@@ -304,29 +318,37 @@ void Application::setBios( std::filesystem::path const& path, bool keep )
   }
   mHaveBios = true;
   mLastError.clear();
-  if ( keep && !mSettingsPath.empty() )
+  if ( keep )
   {
-    std::ofstream stream{ mSettingsPath };
-    stream << control::Json{ { "bios", path.string() } }.dump( 2 ) << '\n';
+    keepSetting( "bios", path.string() );
   }
 }
 
 void Application::restoreBios()
 {
-  std::ifstream stream{ mSettingsPath };
-  if ( mSettingsPath.empty() || !stream )
+  if ( mSettings.contains( "bios" ) && mSettings.at( "bios" ).is_string() )
   {
-    return;
-  }
-  auto const json = control::Json::parse( stream, nullptr, false );
-  if ( json.is_object() && json.contains( "bios" ) && json.at( "bios" ).is_string() )
-  {
-    std::filesystem::path const bios{ json.at( "bios" ).get<std::string>() };
+    std::filesystem::path const bios{ mSettings.at( "bios" ).get<std::string>() };
     std::error_code failed;
     if ( std::filesystem::exists( bios, failed ) )
     {
       setBios( bios, false );
     }
+  }
+}
+
+void Application::keepSetting( std::string const& key, control::Json value )
+{
+  mSettings[key] = std::move( value );
+  if ( mSettingsPath.empty() )
+  {
+    return;
+  }
+  std::ofstream stream{ mSettingsPath };
+  stream << mSettings.dump( 2 ) << '\n';
+  if ( !stream )
+  {
+    spdlog::warn( "cannot write the settings to {}", mSettingsPath.string() );
   }
 }
 
@@ -440,8 +462,10 @@ void Application::updateEmulation()
   ImGuiIO const& io = ImGui::GetIO();
   bool const capturing = mInputWindow->capturing();
   bool const toGame = !capturing && !io.WantTextInput && ( mScreenFocused || !io.WantCaptureKeyboard );
-  mEmulation->setHostInputs( mInputMap.pressed( toGame ? SDL_GetKeyboardState( nullptr ) : nullptr,
-                                                capturing ? std::vector<SDL_Gamepad*>{} : mGamepads.handles() ) );
+  bool const* const keys = toGame ? SDL_GetKeyboardState( nullptr ) : nullptr;
+  std::vector<SDL_Gamepad*> const gamepads = capturing ? std::vector<SDL_Gamepad*>{} : mGamepads.handles();
+  mEmulation->setHostInputs( mInputMap.pressed( keys, gamepads ) );
+  mEmulation->setRewinding( mInputMap.held( Hotkey::REWIND, keys, gamepads ) );
   if ( mEmulation->takePicture( mPicturesShown, mFrame ) )
   {
     mFrameChanged = true;
@@ -500,6 +524,15 @@ void Application::drawMenuBar()
     if ( ImGui::MenuItem( "Reset" ) )
     {
       static_cast<void>( request( "emu.reset", { { "cycles", 100 } } ) );
+    }
+    if ( ImGui::MenuItem( "Rewind", nullptr, &mRewindKept ) )
+    {
+      mEmulation->setRewindKept( mRewindKept );
+      keepSetting( "rewind", mRewindKept );
+    }
+    if ( ImGui::IsItemHovered() )
+    {
+      ImGui::SetTooltip( "Keeps the last 30 seconds, to be gone back through while the Rewind hotkey is held" );
     }
     if ( ImGui::BeginMenu( "Region" ) )
     {

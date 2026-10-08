@@ -12,7 +12,10 @@
 #include <deque>
 #include <future>
 #include <mutex>
+#include <optional>
+#include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace pgm::app
@@ -50,6 +53,13 @@ public:
   /// applied before each frame.
   void setHostInputs( std::array<std::uint16_t, 4> const& pressed );
 
+  /// Whether the last seconds are kept, a state a frame, to be rewound
+  /// through (docs/decisions/0018-rewind-keeps-every-frame.md).
+  void setRewindKept( bool kept );
+  /// While `held`, each frame goes a frame back instead of on, silently, paused
+  /// or not; let go, the game runs on from there.
+  void setRewinding( bool held );
+
   /// Copies the last complete picture into `out` if it is newer than
   /// `picturesSeen`, and updates that; false if there is none newer.
   bool takePicture( std::int64_t& picturesSeen, std::vector<std::uint8_t>& out );
@@ -64,8 +74,15 @@ private:
   void loop();
   /// Answers every request waiting, on the emulation thread.
   void serveRequests();
-  /// Runs one frame and hands its sound and picture on.
+  /// Runs one frame and hands its sound and picture on, and keeps its state.
   void runFrame( machine::Machine& machine );
+  /// Goes back to the frame before the last kept, and hands its picture on.
+  void stepBack( machine::Machine& machine );
+  /// Forgets the states kept when they are not for the cartridge running:
+  /// another game or region has other ROMs, which a state does not hold.
+  void checkHistory();
+  /// Hands the machine's picture on to takePicture().
+  void publishPicture( machine::Machine const& machine );
 
   Emulator mEmulator;
   control::Dispatcher mDispatcher;
@@ -79,9 +96,19 @@ private:
 
   std::atomic<bool> mPaused{};
   std::atomic<std::uint64_t> mHostInputs{};
+  std::atomic<bool> mRewindKept{ true };
+  std::atomic<bool> mRewinding{};
+
+  /// The states after the last frames run, the latest last, and the game and
+  /// region they are of.
+  std::deque<std::vector<std::uint8_t>> mHistory;
+  std::pair<std::optional<std::string>, std::optional<std::string>> mHistoryOf;
+  /// The machine's count of pictures when one was last handed on.
+  std::int64_t mMachinePictures{ -1 };
 
   std::mutex mPictureMutex;
   std::vector<std::uint8_t> mPicture;
+  /// Pictures handed on: the machine's own count goes back with a rewind.
   std::int64_t mPicturesDrawn{ -1 };
 
   std::thread mThread;

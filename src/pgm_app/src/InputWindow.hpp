@@ -8,12 +8,15 @@
 #include <cstddef>
 #include <functional>
 #include <optional>
+#include <string_view>
+#include <vector>
 
 namespace pgm::app
 {
 
 /// The input map's editor: a tab a player, each control's bindings with a way
-/// to add one by pressing it and to clear them, and which gamepad is whose.
+/// to add one by pressing it and to clear them, and which gamepad is whose;
+/// and a tab of the hotkeys, bound the same way.
 class InputWindow
 {
 public:
@@ -34,11 +37,15 @@ public:
 
 private:
   void drawPlayer( std::size_t player );
+  void drawHotkeys();
+  /// A row of a table of bindings: the label, what `bindings` holds, and the
+  /// buttons that add one and clear them.
+  void drawBindings( std::string_view label, std::vector<Binding>& bindings );
 
+  /// The bindings a binding waits to be added to, in the map.
   struct Waiting
   {
-    std::size_t player;
-    Control control;
+    std::vector<Binding>* bindings;
   };
 
   InputMap& mMap;

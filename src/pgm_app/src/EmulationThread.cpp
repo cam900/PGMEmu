@@ -24,6 +24,9 @@ constexpr double MAX_FRAMES_OWED = 4.0;
 /// it notices a game loaded or a pause lifted.
 constexpr std::chrono::milliseconds IDLE_WAIT{ 20 };
 
+/// How far back a rewind goes: 30 seconds, some 1800 states of 1.4 to 1.8 MB.
+constexpr auto HISTORY_FRAMES = static_cast<std::size_t>( 30.0 * FRAMES_PER_SECOND );
+
 std::uint64_t packInputs( std::array<std::uint16_t, 4> const& pressed )
 {
   std::uint64_t packed = 0;
@@ -101,6 +104,22 @@ void EmulationThread::setHostInputs( std::array<std::uint16_t, 4> const& pressed
   mHostInputs = packInputs( pressed );
 }
 
+void EmulationThread::setRewindKept( bool kept )
+{
+  mRewindKept = kept;
+}
+
+void EmulationThread::setRewinding( bool held )
+{
+  if ( held && !mRewinding.exchange( true ) && mAudio != nullptr )
+  {
+    // Silent while rewinding, from the first step back.
+    mAudio->clear();
+  }
+  mRewinding = held;
+  mWake.notify_all();
+}
+
 bool EmulationThread::takePicture( std::int64_t& picturesSeen, std::vector<std::uint8_t>& out )
 {
   std::scoped_lock const lock{ mPictureMutex };
@@ -139,13 +158,57 @@ void EmulationThread::runFrame( machine::Machine& machine )
   {
     mAudio->push( machine.audio(), machine.audioRate() );
   }
-  if ( machine.picturesDrawn() != mPicturesDrawn )
+  if ( machine.picturesDrawn() != mMachinePictures )
   {
-    auto const picture = machine.picture();
-    std::scoped_lock const lock{ mPictureMutex };
-    mPicture.assign( picture.begin(), picture.end() );
-    mPicturesDrawn = machine.picturesDrawn();
+    publishPicture( machine );
   }
+
+  checkHistory();
+  if ( !mRewindKept )
+  {
+    mHistory.clear();
+    return;
+  }
+  if ( mHistory.size() == HISTORY_FRAMES )
+  {
+    mHistory.pop_front();
+  }
+  mHistory.push_back( machine.saveState() );
+}
+
+void EmulationThread::stepBack( machine::Machine& machine )
+{
+  checkHistory();
+  // The latest state is the frame shown; the first step back is to the one
+  // before it. The oldest is kept, to be stayed at.
+  if ( mHistory.size() < 2 || !mRewindKept )
+  {
+    return;
+  }
+  mHistory.pop_back();
+  if ( machine.loadState( mHistory.back() ) )
+  {
+    publishPicture( machine );
+  }
+}
+
+void EmulationThread::checkHistory()
+{
+  auto of = std::pair{ mEmulator.gameName(), mEmulator.region() };
+  if ( of != mHistoryOf )
+  {
+    mHistory.clear();
+    mHistoryOf = std::move( of );
+  }
+}
+
+void EmulationThread::publishPicture( machine::Machine const& machine )
+{
+  mMachinePictures = machine.picturesDrawn();
+  auto const picture = machine.picture();
+  std::scoped_lock const lock{ mPictureMutex };
+  mPicture.assign( picture.begin(), picture.end() );
+  ++mPicturesDrawn;
 }
 
 void EmulationThread::loop()
@@ -172,7 +235,8 @@ void EmulationThread::loop()
     last = now;
     machine::Machine* const machine = mEmulator.machine();
     auto wakeAt = now + IDLE_WAIT;
-    if ( machine == nullptr || mPaused )
+    bool const rewinding = mRewinding;
+    if ( machine == nullptr || ( mPaused && !rewinding ) )
     {
       owed = 0.0;
     }
@@ -182,7 +246,14 @@ void EmulationThread::loop()
       if ( owed >= 1.0 )
       {
         owed -= 1.0;
-        runFrame( *machine );
+        if ( rewinding )
+        {
+          stepBack( *machine );
+        }
+        else
+        {
+          runFrame( *machine );
+        }
         continue;
       }
       wakeAt = now + std::chrono::duration_cast<Clock::duration>(

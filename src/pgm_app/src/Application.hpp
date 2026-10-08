@@ -60,6 +60,9 @@ public:
   void setBios( std::filesystem::path const& path, bool keep );
   /// The BIOS kept from an earlier start, when the command line gave none.
   void restoreBios();
+  /// Sets `key` among the application's settings, and writes them when they
+  /// are kept.
+  void keepSetting( std::string const& key, control::Json value );
 
   ~Application();
 
@@ -142,8 +145,12 @@ private:
   std::optional<std::string> mChosen;
   std::optional<std::string> mChosenBios;
   /// Where the application's own settings are kept, the BIOS among them,
-  /// beside imgui.ini; empty when they are not kept.
+  /// beside imgui.ini; empty when they are not kept. They are read once, and
+  /// written whole whenever one changes.
   std::filesystem::path mSettingsPath;
+  control::Json mSettings = control::Json::object();
+  /// Whether the last seconds are kept to be rewound through.
+  bool mRewindKept{ true };
   /// Whether the emulator has been told where the BIOS is.
   bool mHaveBios{};
   /// The game the window's title names, and the frames until it is asked

@@ -44,6 +44,11 @@ void InputWindow::draw( bool& open )
           ImGui::EndTabItem();
         }
       }
+      if ( ImGui::BeginTabItem( "Hotkeys" ) )
+      {
+        drawHotkeys();
+        ImGui::EndTabItem();
+      }
       ImGui::EndTabBar();
     }
     ImGui::Separator();
@@ -96,41 +101,60 @@ void InputWindow::drawPlayer( std::size_t player )
   ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthFixed );
   for ( std::size_t c = 0; c < CONTROLS; ++c )
   {
-    auto const control = static_cast<Control>( c );
-    auto& bindings = entry.bindings.at( c );
-    ImGui::PushID( static_cast<int>( c ) );
-    ImGui::TableNextRow();
-    ImGui::TableNextColumn();
-    ImGui::TextUnformatted( std::string{ labelOf( control ) }.c_str() );
-    ImGui::TableNextColumn();
-    bool const waiting = mWaiting && mWaiting->player == player && mWaiting->control == control;
-    if ( waiting )
-    {
-      ImGui::TextDisabled( "Press a key or a gamepad button; Escape gives up" );
-    }
-    else
-    {
-      std::string text;
-      for ( Binding const& binding : bindings )
-      {
-        text += fmt::format( "{}{}", text.empty() ? "" : ", ", describe( binding ) );
-      }
-      ImGui::TextUnformatted( text.empty() ? "-" : text.c_str() );
-    }
-    ImGui::TableNextColumn();
-    if ( ImGui::SmallButton( "Add" ) )
-    {
-      mWaiting = Waiting{ .player = player, .control = control };
-    }
-    ImGui::SameLine();
-    if ( ImGui::SmallButton( "Clear" ) && !bindings.empty() )
-    {
-      bindings.clear();
-      mChanged();
-    }
-    ImGui::PopID();
+    drawBindings( labelOf( static_cast<Control>( c ) ), entry.bindings.at( c ) );
   }
   ImGui::EndTable();
+}
+
+void InputWindow::drawHotkeys()
+{
+  ImGui::TextWrapped( "Keys for the emulator rather than the game. A gamepad's binding works on any gamepad." );
+  if ( !ImGui::BeginTable( "hotkeys", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp ) )
+  {
+    return;
+  }
+  ImGui::TableSetupColumn( "Hotkey", ImGuiTableColumnFlags_WidthFixed );
+  ImGui::TableSetupColumn( "Bound to" );
+  ImGui::TableSetupColumn( "", ImGuiTableColumnFlags_WidthFixed );
+  for ( std::size_t h = 0; h < HOTKEYS; ++h )
+  {
+    drawBindings( labelOf( static_cast<Hotkey>( h ) ), mMap.hotkeys().at( h ) );
+  }
+  ImGui::EndTable();
+}
+
+void InputWindow::drawBindings( std::string_view label, std::vector<Binding>& bindings )
+{
+  ImGui::PushID( &bindings );
+  ImGui::TableNextRow();
+  ImGui::TableNextColumn();
+  ImGui::TextUnformatted( std::string{ label }.c_str() );
+  ImGui::TableNextColumn();
+  if ( mWaiting && mWaiting->bindings == &bindings )
+  {
+    ImGui::TextDisabled( "Press a key or a gamepad button; Escape gives up" );
+  }
+  else
+  {
+    std::string text;
+    for ( Binding const& binding : bindings )
+    {
+      text += fmt::format( "{}{}", text.empty() ? "" : ", ", describe( binding ) );
+    }
+    ImGui::TextUnformatted( text.empty() ? "-" : text.c_str() );
+  }
+  ImGui::TableNextColumn();
+  if ( ImGui::SmallButton( "Add" ) )
+  {
+    mWaiting = Waiting{ .bindings = &bindings };
+  }
+  ImGui::SameLine();
+  if ( ImGui::SmallButton( "Clear" ) && !bindings.empty() )
+  {
+    bindings.clear();
+    mChanged();
+  }
+  ImGui::PopID();
 }
 
 bool InputWindow::capture( SDL_Event const& event )
@@ -169,7 +193,7 @@ bool InputWindow::capture( SDL_Event const& event )
     // Key releases and the like are swallowed while waiting.
     return event.type == SDL_EVENT_KEY_UP || event.type == SDL_EVENT_KEY_DOWN;
   }
-  auto& bindings = mMap.players().at( mWaiting->player ).bindings.at( static_cast<std::size_t>( mWaiting->control ) );
+  auto& bindings = *mWaiting->bindings;
   if ( std::ranges::find( bindings, *binding ) == bindings.end() )
   {
     bindings.push_back( *binding );

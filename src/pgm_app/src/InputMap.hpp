@@ -36,8 +36,21 @@ inline constexpr std::size_t PLAYERS = 4;
 /// The control's name as the input window shows it.
 [[nodiscard]] std::string_view labelOf( Control control );
 
+/// What a key held tells the emulator rather than the game.
+enum class Hotkey : std::uint8_t
+{
+  /// Runs the game backwards while held.
+  REWIND
+};
+
+inline constexpr std::size_t HOTKEYS = 1;
+
+/// The hotkey's name as the input window shows it.
+[[nodiscard]] std::string_view labelOf( Hotkey hotkey );
+
 /// A key or a gamepad's input that a control is bound to. A gamepad's binding
-/// is to the gamepad of the player whose control it is.
+/// is to the gamepad of the player whose control it is, or, for a hotkey, to
+/// any gamepad.
 struct Binding
 {
   enum class Kind : std::uint8_t
@@ -76,21 +89,29 @@ public:
   };
 
   /// Player 1 on the arrows, Z, X, C, V, with 1 to start and 5 for a coin;
-  /// player 2 on R, F, D, G, A, S, Q, W, 2 and 6, as MAME has them; and each
-  /// player on the gamepad connected in its turn.
+  /// player 2 on R, F, D, G, A, S, Q, W, 2 and 6, as MAME has them; each
+  /// player on the gamepad connected in its turn; rewind on Backspace and a
+  /// gamepad's left shoulder.
   static InputMap defaults();
 
   [[nodiscard]] std::array<Player, PLAYERS>& players();
   [[nodiscard]] std::array<Player, PLAYERS> const& players() const;
+  [[nodiscard]] std::array<std::vector<Binding>, HOTKEYS>& hotkeys();
+  [[nodiscard]] std::array<std::vector<Binding>, HOTKEYS> const& hotkeys() const;
 
   /// IN0..IN3 with a bit set for each control held: on `keys`, SDL's keyboard
   /// state, unless it is null, and on each player's gamepad in `connected`.
   [[nodiscard]] std::array<std::uint16_t, 4> pressed( bool const* keys,
                                                       std::vector<SDL_Gamepad*> const& connected ) const;
 
+  /// Whether `hotkey` is held: on `keys`, unless it is null, or on any gamepad
+  /// in `connected`.
+  [[nodiscard]] bool held( Hotkey hotkey, bool const* keys, std::vector<SDL_Gamepad*> const& connected ) const;
+
   [[nodiscard]] control::Json toJson() const;
   /// The map `json` describes, or nothing when it is not one; bindings it
-  /// cannot read are left out.
+  /// cannot read are left out, and hotkeys it does not name have their
+  /// defaults.
   static std::optional<InputMap> fromJson( control::Json const& json );
 
   /// The map saved at `path`, or the defaults when there is none to read.
@@ -99,6 +120,7 @@ public:
 
 private:
   std::array<Player, PLAYERS> mPlayers;
+  std::array<std::vector<Binding>, HOTKEYS> mHotkeys;
 };
 
 } // namespace pgm::app

@@ -4,6 +4,7 @@
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <fstream>
 #include <initializer_list>
 #include <utility>
@@ -34,6 +35,9 @@ constexpr std::array<ControlName, CONTROLS> NAMES{ { { .key = "up", .label = "Up
                                                      { .key = "button4", .label = "Button 4" },
                                                      { .key = "start", .label = "Start" },
                                                      { .key = "coin", .label = "Coin" } } };
+
+// In Hotkey's order.
+constexpr std::array<ControlName, HOTKEYS> HOTKEY_NAMES{ { { .key = "rewind", .label = "Rewind" } } };
 
 /// Where a player's control is in IN0..IN3 (PGM.sv): players 1 and 2 have the
 /// two bytes of IN0, players 3 and 4 those of IN1, each start, up, down, left,
@@ -91,6 +95,29 @@ std::vector<Binding>& bindingsOf( InputMap::Player& player, Control control )
   return player.bindings.at( static_cast<std::size_t>( control ) );
 }
 
+std::array<std::vector<Binding>, HOTKEYS> defaultHotkeys()
+{
+  return { { { key( SDL_SCANCODE_BACKSPACE ), button( SDL_GAMEPAD_BUTTON_LEFT_SHOULDER ) } } };
+}
+
+/// Whether `binding` is held on `keys`, unless it is null, or on `gamepad`,
+/// unless it is null.
+bool isHeld( Binding const& binding, bool const* keys, SDL_Gamepad* gamepad )
+{
+  switch ( binding.kind )
+  {
+  case Binding::Kind::KEY:
+    return keys != nullptr && keys[binding.code];
+  case Binding::Kind::BUTTON:
+    return gamepad != nullptr && SDL_GetGamepadButton( gamepad, static_cast<SDL_GamepadButton>( binding.code ) );
+  case Binding::Kind::AXIS:
+    return gamepad != nullptr &&
+           SDL_GetGamepadAxis( gamepad, static_cast<SDL_GamepadAxis>( binding.code ) ) * binding.direction >
+               AXIS_THRESHOLD;
+  }
+  return false;
+}
+
 /// A binding as the JSON holds it: "key:Z", "button:a", "axis:-leftx".
 std::string encode( Binding const& binding )
 {
@@ -135,11 +162,41 @@ std::optional<Binding> decode( std::string_view text )
   return std::nullopt;
 }
 
+/// A list of bindings as the JSON holds it.
+control::Json encodeAll( std::vector<Binding> const& bindings )
+{
+  control::Json list = control::Json::array();
+  for ( Binding const& binding : bindings )
+  {
+    list.push_back( encode( binding ) );
+  }
+  return list;
+}
+
+/// The bindings `list` holds, those it cannot read left out.
+std::vector<Binding> decodeAll( control::Json const& list )
+{
+  std::vector<Binding> bindings;
+  for ( control::Json const& text : list )
+  {
+    if ( auto const binding = text.is_string() ? decode( text.get<std::string>() ) : std::nullopt )
+    {
+      bindings.push_back( *binding );
+    }
+  }
+  return bindings;
+}
+
 } // namespace
 
 std::string_view labelOf( Control control )
 {
   return NAMES.at( static_cast<std::size_t>( control ) ).label;
+}
+
+std::string_view labelOf( Hotkey hotkey )
+{
+  return HOTKEY_NAMES.at( static_cast<std::size_t>( hotkey ) ).label;
 }
 
 std::string describe( Binding const& binding )
@@ -211,6 +268,7 @@ InputMap InputMap::defaults()
       list.insert( list.end(), bindings.begin(), bindings.end() );
     }
   }
+  map.mHotkeys = defaultHotkeys();
   return map;
 }
 
@@ -224,6 +282,16 @@ std::array<InputMap::Player, PLAYERS> const& InputMap::players() const
   return mPlayers;
 }
 
+std::array<std::vector<Binding>, HOTKEYS>& InputMap::hotkeys()
+{
+  return mHotkeys;
+}
+
+std::array<std::vector<Binding>, HOTKEYS> const& InputMap::hotkeys() const
+{
+  return mHotkeys;
+}
+
 std::array<std::uint16_t, 4> InputMap::pressed( bool const* keys, std::vector<SDL_Gamepad*> const& connected ) const
 {
   std::array<std::uint16_t, 4> words{};
@@ -233,26 +301,11 @@ std::array<std::uint16_t, 4> InputMap::pressed( bool const* keys, std::vector<SD
     SDL_Gamepad* const gamepad = player.gamepad >= 0 && static_cast<std::size_t>( player.gamepad ) < connected.size()
                                      ? connected.at( static_cast<std::size_t>( player.gamepad ) )
                                      : nullptr;
-    auto const held = [&]( Binding const& binding )
-    {
-      switch ( binding.kind )
-      {
-      case Binding::Kind::KEY:
-        return keys != nullptr && keys[binding.code];
-      case Binding::Kind::BUTTON:
-        return gamepad != nullptr && SDL_GetGamepadButton( gamepad, static_cast<SDL_GamepadButton>( binding.code ) );
-      case Binding::Kind::AXIS:
-        return gamepad != nullptr &&
-               SDL_GetGamepadAxis( gamepad, static_cast<SDL_GamepadAxis>( binding.code ) ) * binding.direction >
-                   AXIS_THRESHOLD;
-      }
-      return false;
-    };
     for ( std::size_t c = 0; c < CONTROLS; ++c )
     {
       for ( Binding const& binding : player.bindings.at( c ) )
       {
-        if ( held( binding ) )
+        if ( isHeld( binding, keys, gamepad ) )
         {
           auto const [word, bit] = bitOf( p, static_cast<Control>( c ) );
           words.at( word ) = static_cast<std::uint16_t>( words.at( word ) | bit );
@@ -264,6 +317,21 @@ std::array<std::uint16_t, 4> InputMap::pressed( bool const* keys, std::vector<SD
   return words;
 }
 
+bool InputMap::held( Hotkey hotkey, bool const* keys, std::vector<SDL_Gamepad*> const& connected ) const
+{
+  for ( Binding const& binding : mHotkeys.at( static_cast<std::size_t>( hotkey ) ) )
+  {
+    if ( binding.kind == Binding::Kind::KEY
+             ? isHeld( binding, keys, nullptr )
+             : std::ranges::any_of( connected,
+                                    [&]( SDL_Gamepad* gamepad ) { return isHeld( binding, nullptr, gamepad ); } ) )
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
 control::Json InputMap::toJson() const
 {
   control::Json players = control::Json::array();
@@ -272,16 +340,16 @@ control::Json InputMap::toJson() const
     control::Json bindings = control::Json::object();
     for ( std::size_t c = 0; c < CONTROLS; ++c )
     {
-      control::Json list = control::Json::array();
-      for ( Binding const& binding : player.bindings.at( c ) )
-      {
-        list.push_back( encode( binding ) );
-      }
-      bindings[std::string{ NAMES.at( c ).key }] = std::move( list );
+      bindings[std::string{ NAMES.at( c ).key }] = encodeAll( player.bindings.at( c ) );
     }
     players.push_back( control::Json{ { "gamepad", player.gamepad }, { "bindings", std::move( bindings ) } } );
   }
-  return control::Json{ { "players", std::move( players ) } };
+  control::Json hotkeys = control::Json::object();
+  for ( std::size_t h = 0; h < HOTKEYS; ++h )
+  {
+    hotkeys[std::string{ HOTKEY_NAMES.at( h ).key }] = encodeAll( mHotkeys.at( h ) );
+  }
+  return control::Json{ { "players", std::move( players ) }, { "hotkeys", std::move( hotkeys ) } };
 }
 
 std::optional<InputMap> InputMap::fromJson( control::Json const& json )
@@ -307,17 +375,21 @@ std::optional<InputMap> InputMap::fromJson( control::Json const& json )
     for ( std::size_t c = 0; c < CONTROLS; ++c )
     {
       std::string const name{ NAMES.at( c ).key };
-      if ( !entry.at( "bindings" ).contains( name ) )
+      if ( entry.at( "bindings" ).contains( name ) )
       {
-        continue;
+        player.bindings.at( c ) = decodeAll( entry.at( "bindings" ).at( name ) );
       }
-      for ( control::Json const& text : entry.at( "bindings" ).at( name ) )
-      {
-        if ( auto const binding = text.is_string() ? decode( text.get<std::string>() ) : std::nullopt )
-        {
-          player.bindings.at( c ).push_back( *binding );
-        }
-      }
+    }
+  }
+  // A map saved before there were hotkeys gains them.
+  map.mHotkeys = defaultHotkeys();
+  control::Json const hotkeys = json.value( "hotkeys", control::Json::object() );
+  for ( std::size_t h = 0; h < HOTKEYS; ++h )
+  {
+    std::string const name{ HOTKEY_NAMES.at( h ).key };
+    if ( hotkeys.is_object() && hotkeys.contains( name ) )
+    {
+      map.mHotkeys.at( h ) = decodeAll( hotkeys.at( name ) );
     }
   }
   return map;

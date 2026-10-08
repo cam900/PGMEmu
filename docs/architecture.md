@@ -168,7 +168,9 @@ gamepad handling and debugger layout; none of its code is used
 
 - The core runs on its own emulation thread (`EmulationThread`). It runs frames at the board's
   pace, and between two frames answers the requests queued for it. It hands each finished
-  picture over under a lock, and its sound straight to the audio stream.
+  picture over under a lock, and its sound straight to the audio stream. It keeps the state after
+  each of the last 30 seconds' frames, which a rewind steps back through
+  ([0018](decisions/0018-rewind-keeps-every-frame.md)).
 - The GUI thread never touches the core. It takes pictures and sends dispatcher requests through
   the queue, the same path the network transports use; the keyboard reaches the machine as the
   host's inputs, apart from those the protocol holds.
@@ -183,7 +185,7 @@ device the clock paces alone. Fast-forward, pause, frame step and rewind sit on 
 **Input:**
 
 - Four players, from the keyboard and from SDL gamepads with hot-plug.
-- Per-player bindings, plus hotkeys.
+- Per-player bindings, plus hotkeys: rewind, on any gamepad.
 - ImGui captures input while a debugger window has focus.
 
 **Debugger windows:**
