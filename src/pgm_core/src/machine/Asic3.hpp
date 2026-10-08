@@ -22,6 +22,17 @@ public:
   /// A bus write at byte address `address`, whatever its strobes.
   void write( std::uint32_t address, std::uint16_t value );
 
+  /// Names its state for a save state (StateArchive.hpp).
+  template <class Archive>
+  void serialize( Archive& archive )
+  {
+    archive( mRegister );
+    archive( mLatch );
+    archive( mX );
+    archive( mHilo );
+    archive( mHold );
+  }
+
 private:
   [[nodiscard]] std::uint16_t nextHold( std::uint16_t data ) const;
 

@@ -127,6 +127,24 @@ void Z80::resume( Z80Bus& bus )
   }
 }
 
+void Z80::serialize( StateWriter& archive )
+{
+  archive( mState->cpu );
+  archive( mState->pins );
+  archive( mState->interrupt );
+  archive( mState->nmi );
+  archive( mState->holding );
+}
+
+void Z80::serialize( StateReader& archive )
+{
+  archive( mState->cpu );
+  archive( mState->pins );
+  archive( mState->interrupt );
+  archive( mState->nmi );
+  archive( mState->holding );
+}
+
 bool Z80::holding() const
 {
   return mState->holding;

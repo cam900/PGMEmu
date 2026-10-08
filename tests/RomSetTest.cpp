@@ -9,7 +9,9 @@
 #include <algorithm>
 #include <array>
 #include <filesystem>
+#include <span>
 #include <string>
+#include <tuple>
 #include <vector>
 
 // These hold the reader against the real thing: the MAME sets in the workspace
@@ -156,4 +158,59 @@ TEST_CASE( "the BIOS starts its sound driver and plays", "[roms]" )
   REQUIRE( frames > 60'000 );
   REQUIRE( sounding > 10'000 );
   REQUIRE( machine.z80Registers().im == 1 );
+}
+
+TEST_CASE( "a save state taken mid-run gives back the same frames, memory and sound", "[roms]" )
+{
+  auto const zipPath = romsDirectory() / "pgm.zip";
+  if ( !std::filesystem::exists( zipPath ) )
+  {
+    SKIP( "needs " << zipPath );
+  }
+
+  std::array const places{ zipPath };
+  auto const bios = valueOf( pgm::cart::Bios::load( valueOf( RomSources::open( places ) ) ) );
+  pgm::machine::Machine machine{ bios, nullptr };
+  machine.runFrames( 100 );
+  std::vector<std::uint8_t> const state = machine.saveState();
+
+  // What 30 more frames make of it, sound included.
+  auto const runOn = [&machine]
+  {
+    std::vector<std::int16_t> sound;
+    for ( int frame = 0; frame < 30; ++frame )
+    {
+      machine.runFrames( 1 );
+      for ( auto const& f : machine.audio() )
+      {
+        sound.insert( sound.end(), { f.left, f.right } );
+      }
+    }
+    auto const bytes = []( std::span<std::uint8_t const> span )
+    { return std::vector<std::uint8_t>( span.begin(), span.end() ); };
+    return std::tuple{ bytes( machine.workRam() ),
+                       bytes( machine.z80Ram() ),
+                       bytes( machine.videoRam() ),
+                       bytes( machine.picture() ),
+                       sound,
+                       machine.now() };
+  };
+  auto const first = runOn();
+
+  REQUIRE( machine.loadState( state ) );
+  auto const second = runOn();
+
+  REQUIRE( std::get<5>( first ) == std::get<5>( second ) );
+  REQUIRE( std::get<0>( first ) == std::get<0>( second ) );
+  REQUIRE( std::get<1>( first ) == std::get<1>( second ) );
+  REQUIRE( std::get<2>( first ) == std::get<2>( second ) );
+  REQUIRE( std::get<3>( first ) == std::get<3>( second ) );
+  REQUIRE( std::get<4>( first ) == std::get<4>( second ) );
+  REQUIRE_FALSE( std::get<4>( first ).empty() );
+
+  // Something else is refused, and changes nothing.
+  std::vector<std::uint8_t> broken = state;
+  broken.resize( broken.size() / 2 );
+  REQUIRE_FALSE( machine.loadState( broken ) );
+  REQUIRE( machine.now() == std::get<5>( second ) );
 }

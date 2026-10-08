@@ -50,6 +50,11 @@ constexpr std::array<CartRegion, 8> CART_REGIONS{ { { .name = "CART_PROG_ROM", .
 
 Emulator::Emulator( Settings settings ) : mSettings{ std::move( settings ) } {}
 
+Settings const& Emulator::settings() const
+{
+  return mSettings;
+}
+
 std::expected<void, LoadFailure> Emulator::loadGameByName( std::string_view name )
 {
   if ( !isSetName( name ) )

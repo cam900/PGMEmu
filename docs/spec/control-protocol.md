@@ -16,6 +16,19 @@ emulator matches it and what it adds.
 - stdout carries responses and nothing else. Logs go to stderr.
 - Serving ends when stdin ends.
 
+### MCP
+
+`pgmemu-cli --mcp` speaks the Model Context Protocol on stdio instead: JSON-RPC 2.0 messages, one
+per line. It answers `initialize`, `ping`, `tools/list` and `tools/call`.
+
+- Every method below is a tool, named with underscores for its dots: `emu.run_frames` is
+  `emu_run_frames`. The `sim.` aliases are left out. A tool's description and input schema are
+  the method's, from the dispatcher's method table.
+- A tool's answer is the method's `result` as JSON text. A screenshot's PNG comes first, as an
+  `image`, and is taken out of the text.
+- A method's failure is a tool result with `isError` set, its text the error's code and message.
+  Only a call that names no tool is a JSON-RPC error.
+
 ## 2. Requests
 
 ```json
@@ -66,6 +79,9 @@ A request that failed:
 | `capture_not_running` | `audio.capture_stop` with no capture running. |
 | `capture_failed` | The capture's file could not be written. |
 | `invalid_input` | An `input.` method was given a name it does not know. |
+| `state_failed` | A save state could not be written or read. |
+| `state_mismatch` | A save state is not one of the game loaded, or not of this build's format. |
+| `nvram_failed` | An NVRAM file could not be written, or is not 128 KB. |
 
 `unknown_method`, `unknown_game`, `load_failed`, `invalid_region`, `invalid_signal`,
 `invalid_input` and `bad_request` mean what the simulator means by them. `no_cartridge`, `not_loaded`,
@@ -227,7 +243,8 @@ the boundary.
 
 | Field | Meaning |
 |---|---|
-| `reason` | `completed`; `breakpoint` when the 68000 reached a breakpoint first; `halted` when it halted on a double bus fault. |
+| `reason` | `completed`; `breakpoint` when the 68000 reached a breakpoint first; `watchpoint` when it read or wrote a watched address; `halted` when it halted on a double bus fault. |
+| `watchpoint` | With `reason` `watchpoint` only: the access, as `{"address", "access": "read" or "write", "value", "bytes", "pc"}`, `pc` being the instruction that made it. |
 | `ticks_executed` | Master ticks the run took. |
 | `frames_executed` | Frame boundaries it passed. |
 
@@ -329,6 +346,51 @@ next run executes that instruction rather than stopping at it again. `add` and `
 ### `debug.breakpoint.list`
 
 Answers the addresses of the breakpoints, ascending.
+
+### `debug.watchpoint.add`, `debug.watchpoint.remove`, `debug.watchpoint.list`
+
+A watchpoint stops a run after the 68000 instruction that reads or writes data in its range.
+Instruction fetches and reads relative to the PC do not count; DMA does not either.
+
+| Param | Meaning |
+|---|---|
+| `address` | The range's first address; one watchpoint per address, a second replacing the first. |
+| `size` | Bytes in the range, 1 if left out. |
+| `access` | `read`, `write` (the default) or `access` for both. |
+
+`debug.watchpoint.remove` takes `address`. `debug.watchpoint.list` answers
+`{"watchpoints":[{"address","size","access"}]}`.
+
+### `debug.trace`
+
+The last instructions the 68000 executed, oldest first: up to 4096 are kept, always.
+
+```json
+{"id":8,"ok":true,"result":{"instructions":[{"pc":1294,"ticks":5023441,"disasm":"bra.s   $50e"}]}}
+```
+
+`count` asks for how many, 32 if left out. `ticks` is when the instruction began.
+
+### `state.save`, `state.load`, `state.list` (as the simulator has them)
+
+`state.save` writes the whole machine's state to `filename`; `state.load` restores it into the
+same game. A `filename` without a directory is in the state directory (`pgmemu-cli
+--state-dir`, or the working directory). `state.list` answers the `.pgmstate` files there,
+`{"states":["a.pgmstate"]}`.
+
+A state holds everything a run changes, and none of the ROMs, breakpoints, watchpoints or the
+trace. It is read back by the build that wrote it: the layout carries a version, and a state of
+another version, or of another game, is refused with `state_mismatch`. Loading a state, then
+running, gives exactly the frames, memory and sound that followed when it was saved.
+
+Errors: `not_loaded`, `state_failed`, `state_mismatch`, `bad_request`.
+
+### `nvram.save`, `nvram.load` (as the simulator has them)
+
+The board keeps its 128 KB of work RAM on a battery. These write it to `filename` and read it
+back, laid out as the RTL's NVRAM interface lays it out: each 16-bit word's low byte first.
+
+Errors: `not_loaded`, `nvram_failed`, `bad_request`.
 
 ### `video.screenshot`
 

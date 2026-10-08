@@ -33,6 +33,7 @@ Dispatcher::Dispatcher( Emulator& emulator )
   addVideoMethods( *this, emulator );
   addAudioMethods( *this, emulator );
   addInputMethods( *this, emulator );
+  addStateMethods( *this, emulator );
 }
 
 Json Dispatcher::handle( Json const& request ) const
@@ -93,9 +94,22 @@ std::vector<std::string> Dispatcher::methodNames() const
   return names;
 }
 
-void Dispatcher::add( std::string_view name, Handler handler )
+std::vector<Method> Dispatcher::methods() const
+{
+  std::vector<Method> methods;
+  methods.reserve( mInfo.size() );
+  for ( auto const& [name, info] : mInfo )
+  {
+    methods.push_back( Method{ .name = name, .info = info } );
+  }
+  std::ranges::sort( methods, {}, &Method::name );
+  return methods;
+}
+
+void Dispatcher::add( std::string_view name, MethodInfo info, Handler handler )
 {
   mHandlers.emplace( name, std::move( handler ) );
+  mInfo.emplace( name, std::move( info ) );
 }
 
 void Dispatcher::alias( std::string_view alias, std::string_view name )

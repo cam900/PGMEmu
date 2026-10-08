@@ -31,6 +31,21 @@ struct Error
 /// What a method answers: the `result` object, or the error that replaces it.
 using Outcome = std::expected<Json, Error>;
 
+/// What a client is told about a method: what it does, and the JSON Schema of
+/// its `params`. MCP's tool list is made from these.
+struct MethodInfo
+{
+  std::string description;
+  Json params = Json{ { "type", "object" } };
+};
+
+/// A method under its own name, with what is told about it.
+struct Method
+{
+  std::string name;
+  MethodInfo info;
+};
+
 /// The one place every capability of the emulator is reached through, whatever
 /// the transport (docs/decisions/0005-one-control-api.md). It takes a request
 /// object and answers a response object; framing, sockets and MCP belong to the
@@ -51,8 +66,11 @@ public:
   /// Every method name a request may use, aliases included, in a stable order.
   [[nodiscard]] std::vector<std::string> methodNames() const;
 
-  /// Makes `name` a method answered by `handler`.
-  void add( std::string_view name, Handler handler );
+  /// Every method under its own name, aliases left out, ordered by name.
+  [[nodiscard]] std::vector<Method> methods() const;
+
+  /// Makes `name` a method answered by `handler`, described by `info`.
+  void add( std::string_view name, MethodInfo info, Handler handler );
 
   /// Makes `alias` answer exactly as `name` does. The RTL simulator's `sim.*`
   /// names are aliases of the emulator's `emu.*`, so one script drives both.
@@ -60,6 +78,7 @@ public:
 
 private:
   std::unordered_map<std::string, Handler> mHandlers;
+  std::unordered_map<std::string, MethodInfo> mInfo;
 };
 
 } // namespace pgm::control

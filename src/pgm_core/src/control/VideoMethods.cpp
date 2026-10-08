@@ -64,6 +64,11 @@ void addVideoMethods( Dispatcher& dispatcher, Emulator& emulator )
 {
   dispatcher.add(
       "video.screenshot",
+      info( "The last complete picture, 448 by 224, as a PNG: written to a path, or returned in the answer.",
+            { { .name = "path",
+                .type = "string",
+                .description = "Where to write the PNG; left out, the PNG is returned.",
+                .required = false } } ),
       [&emulator]( Json const& params ) -> Outcome
       {
         machine::Machine const* const machine = emulator.machine();

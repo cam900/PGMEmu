@@ -13,6 +13,7 @@ add_library( pgm_core
   src/control/MemoryMethods.cpp
   src/control/Params.cpp
   src/control/RunMethods.cpp
+  src/control/StateMethods.cpp
   src/control/VideoMethods.cpp
   src/cpu/MoiraConfigCheck.cpp
   src/io/RomSources.cpp

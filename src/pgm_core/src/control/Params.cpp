@@ -35,4 +35,29 @@ std::expected<std::uint64_t, Error> requireUnsigned( Json const& params, std::st
   return field->get<std::uint64_t>();
 }
 
+Json paramsSchema( std::initializer_list<Param> params )
+{
+  Json properties = Json::object();
+  Json required = Json::array();
+  for ( Param const& param : params )
+  {
+    properties[std::string{ param.name }] = Json{ { "type", param.type }, { "description", param.description } };
+    if ( param.required )
+    {
+      required.push_back( param.name );
+    }
+  }
+  Json schema{ { "type", "object" }, { "properties", std::move( properties ) } };
+  if ( !required.empty() )
+  {
+    schema["required"] = std::move( required );
+  }
+  return schema;
+}
+
+MethodInfo info( std::string_view description, std::initializer_list<Param> params )
+{
+  return MethodInfo{ .description = std::string{ description }, .params = paramsSchema( params ) };
+}
+
 } // namespace pgm::control

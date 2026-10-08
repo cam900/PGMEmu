@@ -26,6 +26,9 @@ struct Settings
   std::vector<std::filesystem::path> biosSources;
   /// The directory `<name>.pgm` is looked for in when a game is loaded by name.
   std::filesystem::path romDirectory;
+  /// Where `state.save` and `state.load` keep save states named without a
+  /// directory, and `state.list` looks; the working directory when empty.
+  std::filesystem::path stateDirectory;
 };
 
 /// Why a game could not be loaded. `kind` is what the control protocol reports
@@ -80,6 +83,8 @@ public:
   /// before a game is loaded.
   [[nodiscard]] machine::Machine* machine();
   [[nodiscard]] machine::Machine const* machine() const;
+
+  [[nodiscard]] Settings const& settings() const;
 
   /// Every region that holds something now, in a stable order.
   [[nodiscard]] std::vector<MemoryRegion> memoryRegions() const;

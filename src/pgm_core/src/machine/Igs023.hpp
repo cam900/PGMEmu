@@ -99,6 +99,28 @@ public:
   [[nodiscard]] static bool vblank( Time now );
   [[nodiscard]] static bool hblank( Time now );
 
+  /// Names its state for a save state (StateArchive.hpp).
+  template <class Archive>
+  void serialize( Archive& archive )
+  {
+    archive( mControl );
+    archive( mZoomTable );
+    archive( mVram );
+    archive( mPalette );
+    archive( mIrq6 );
+    archive( mIrq4 );
+    archive( mIrq4Count );
+    archive( mEventsDone );
+    archive( *mSprites );
+    archive( *mNextSprites );
+    archive( mNextSpritesReady );
+    archive( mSpriteList );
+    archive( mBusHeldUntil );
+    archive( mBuilding );
+    archive( mFrame );
+    archive( mFramesCompleted );
+  }
+
 private:
   void onLineStart( int line );
   void onHsync( Time at );

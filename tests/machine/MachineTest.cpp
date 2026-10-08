@@ -152,7 +152,8 @@ TEST_CASE( "a run stops at a breakpoint before the instruction, and the next run
 TEST_CASE( "run_until stops where its condition first holds", "[machine][control]" )
 {
   BiosFixture const fixture{ vblankCounter() };
-  pgm::Emulator emulator{ pgm::Settings{ .biosSources = { fixture.directory() }, .romDirectory = {} } };
+  pgm::Emulator emulator{ pgm::Settings{
+      .biosSources = { fixture.directory() }, .romDirectory = {}, .stateDirectory = {} } };
   pgm::control::Dispatcher const dispatcher{ emulator };
   auto const call = [&]( std::string const& method, Json params )
   { return dispatcher.handle( Json{ { "id", 1 }, { "method", method }, { "params", std::move( params ) } } ); };
@@ -164,4 +165,54 @@ TEST_CASE( "run_until stops where its condition first holds", "[machine][control
 
   REQUIRE( run.at( "result" ).at( "reason" ) == "condition_met" );
   REQUIRE( call( "cpu.get_state", Json::object() ).at( "result" ).at( "pc" ) == VBLANK_HANDLER );
+}
+
+TEST_CASE( "a run stops after the instruction that writes a watched address", "[machine]" )
+{
+  BiosFixture const fixture{ vblankCounter() };
+  auto const bios = fixture.load();
+  Machine machine{ bios, nullptr };
+  machine.addWatchpoint( pgm::machine::Watchpoint{ .address = COUNTER + 1, .size = 1, .read = false, .write = true } );
+
+  auto const run = machine.runFrames( 3 );
+
+  REQUIRE( run.reason == StopReason::WATCHPOINT );
+  auto const hit = valueOf( machine.watchpointHit() );
+  REQUIRE( hit.write );
+  REQUIRE( hit.address == COUNTER );
+  REQUIRE( hit.value == 1 );
+  REQUIRE( hit.pc == VBLANK_HANDLER + 16 );
+  REQUIRE( wordAt( machine.workRam(), COUNTER & 0x1ffffU ) == 1 );
+
+  // The addq reads the counter before it writes it; a read watchpoint sees the
+  // read, and not the fetch of the instruction words around it.
+  machine.removeWatchpoint( COUNTER + 1 );
+  machine.addWatchpoint( pgm::machine::Watchpoint{ .address = COUNTER, .size = 2, .read = true, .write = false } );
+  REQUIRE( machine.runFrames( 3 ).reason == StopReason::WATCHPOINT );
+  auto const read = valueOf( machine.watchpointHit() );
+  REQUIRE_FALSE( read.write );
+  REQUIRE( read.value == 1 );
+
+  machine.removeWatchpoint( COUNTER );
+  REQUIRE( machine.watchpoints().empty() );
+  REQUIRE( machine.runFrames( 3 ).reason == StopReason::COMPLETED );
+}
+
+TEST_CASE( "the trace holds the last instructions executed, oldest first", "[machine]" )
+{
+  BiosFixture const fixture{ vblankCounter() };
+  auto const bios = fixture.load();
+  Machine machine{ bios, nullptr };
+  machine.addBreakpoint( VBLANK_HANDLER + 16 );
+  machine.runFrames( 3 );
+
+  auto const trace = machine.trace( 3 );
+
+  REQUIRE( trace.size() == 3 );
+  // The loop, then the handler up to the breakpoint.
+  REQUIRE( trace[0].pc == LOOP );
+  REQUIRE( trace[1].pc == VBLANK_HANDLER );
+  REQUIRE( trace[2].pc == VBLANK_HANDLER + 8 );
+  REQUIRE( trace[0].ticks < trace[1].ticks );
+  REQUIRE( machine.trace( 100000 ).size() <= Machine::TRACE_SIZE );
 }

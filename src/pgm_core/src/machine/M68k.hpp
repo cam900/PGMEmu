@@ -11,11 +11,23 @@
 
 #include "Moira.h"
 
+#include "pgm/machine/Machine.hpp"
+
 #include <cstdint>
+#include <optional>
 #include <string>
+#include <vector>
 
 namespace pgm::machine
 {
+
+/// The watchpoints the 68000's data accesses are checked against, and the
+/// first access that hit one since `hit` was last cleared.
+struct WatchState
+{
+  std::vector<Watchpoint> points;
+  std::optional<WatchpointHit> hit;
+};
 
 class M68k : public moira::Moira
 {
@@ -27,11 +39,37 @@ public:
   /// which is when fx68k's E counter leaves zero.
   void startEClock( Time at );
 
+  /// Checks every data access against `watch`'s watchpoints, which must
+  /// outlive the CPU.
+  void watch( WatchState& watch );
+
   /// Whether a STOP instruction is waiting for an interrupt.
   [[nodiscard]] bool stopped() const;
 
   /// The instruction at `address` as text, and its length in bytes.
   [[nodiscard]] std::string disassembleAt( std::uint32_t address, int& length ) const;
+
+  /// Names its state for a save state (StateArchive.hpp): Moira's, which it
+  /// keeps in plain fields, and the E clock's.
+  template <class Archive>
+  void serialize( Archive& archive )
+  {
+    archive( clock );
+    archive( reg );
+    archive( queue );
+    archive( iCache );
+    archive( budget );
+    archive( irqMode );
+    archive( ipl );
+    archive( fcl );
+    archive( fcSource );
+    archive( exception );
+    archive( loopModeDelay );
+    archive( readBuffer );
+    archive( writeBuffer );
+    archive( flags );
+    archive( mEClockOrigin );
+  }
 
 protected:
   void sync( int cycles ) override;
@@ -50,7 +88,11 @@ protected:
 private:
   // Moira's client interface is const, as a read of memory looks from the
   // CPU's side; the bus it reaches is not.
+  /// Records the access in mWatch if it is a data access a watchpoint covers.
+  void noteAccess( std::uint32_t address, bool write, std::uint16_t value, std::uint8_t bytes ) const;
+
   Bus68k* mBus;
+  WatchState* mWatch{};
   Time* mTime;
   Time mEClockOrigin{};
 };

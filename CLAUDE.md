@@ -20,6 +20,7 @@ the desktop application and with it SDL3 and ImGui.
 build/debug/src/pgm_app/pgmemu --bios ../ROMS/pgm.zip --rom-dir roms orlegend   # desktop: arrows, Z X C V, 1 start, 5 coin
 build/debug/src/pgm_cli/pgmemu-cli --info roms/orlegend.pgm
 build/debug/src/pgm_cli/pgmemu-cli --server --bios ../ROMS/pgm.zip --rom-dir roms
+build/debug/src/pgm_cli/pgmemu-cli --mcp --bios ../ROMS/pgm.zip --rom-dir roms   # MCP for an agent; --state-dir DIR for save states
 ```
 
 ```sh

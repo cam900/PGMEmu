@@ -17,6 +17,7 @@ add_executable( pgm_tests
   machine/SpriteEngineTest.cpp
   machine/V3021Test.cpp
   server/JsonLinesServerTest.cpp
+  server/McpServerTest.cpp
   support/Files.cpp
   support/Fixture.cpp
   support/PgmFile.cpp

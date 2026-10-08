@@ -8,6 +8,7 @@
 #include "pgm/control/Describe.hpp"
 #include "pgm/control/Dispatcher.hpp"
 #include "pgm/server/JsonLinesServer.hpp"
+#include "pgm/server/McpServer.hpp"
 
 #include <CLI/CLI.hpp>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -49,12 +50,22 @@ int run( int argc, char** argv )
       ->check( CLI::ExistingPath );
   app.add_option( "--rom-dir", settings.romDirectory, "Where emu.load_game finds <name>.pgm" )
       ->check( CLI::ExistingDirectory );
+  app.add_option( "--state-dir",
+                  settings.stateDirectory,
+                  "Where state.save and state.load keep save states given by name; the working directory if not given" )
+      ->check( CLI::ExistingDirectory );
 
   bool server = false;
   auto* const serverFlag =
       app.add_flag( "--server", server, "Answer JSON-lines requests on stdin, one response per line on stdout" );
+  bool mcp = false;
+  auto* const mcpFlag =
+      app.add_flag( "--mcp", mcp, "Serve the Model Context Protocol on stdio, for an agent" )->excludes( serverFlag );
   std::filesystem::path info;
-  app.add_option( "--info", info, "Describe a .pgm file and exit" )->check( CLI::ExistingFile )->excludes( serverFlag );
+  app.add_option( "--info", info, "Describe a .pgm file and exit" )
+      ->check( CLI::ExistingFile )
+      ->excludes( serverFlag )
+      ->excludes( mcpFlag );
 
   CLI11_PARSE( app, argc, argv );
 
@@ -67,7 +78,7 @@ int run( int argc, char** argv )
   // stderr; a client parsing stdout must never meet one.
   spdlog::set_default_logger( spdlog::stderr_color_mt( "pgmemu" ) );
 
-  if ( !server )
+  if ( !server && !mcp )
   {
     std::cerr << app.help();
     return 1;
@@ -75,6 +86,13 @@ int run( int argc, char** argv )
 
   pgm::Emulator emulator{ std::move( settings ) };
   pgm::control::Dispatcher const dispatcher{ emulator };
+  if ( mcp )
+  {
+    pgm::server::McpServer transport{ dispatcher };
+    spdlog::info( "pgmemu-cli {} serving MCP on stdio", pgm::versionString() );
+    transport.serve( std::cin, std::cout );
+    return 0;
+  }
   pgm::server::JsonLinesServer const transport{ dispatcher };
   spdlog::info( "pgmemu-cli {} serving JSON-lines on stdio", pgm::versionString() );
   transport.serve( std::cin, std::cout );

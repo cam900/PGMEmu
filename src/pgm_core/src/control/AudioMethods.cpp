@@ -129,6 +129,9 @@ void addAudioMethods( Dispatcher& dispatcher, Emulator& emulator )
   auto recorder = std::make_shared<std::shared_ptr<WavRecorder>>();
 
   dispatcher.add( "audio.capture_start",
+                  info( "Starts recording the sound to a WAV file at the ICS2115's own rate, about 33 kHz; runs add to "
+                        "it as they end.",
+                        { { .name = "path", .type = "string", .description = "Where to write the WAV." } } ),
                   [&emulator, recorder]( Json const& params ) -> Outcome
                   {
                     machine::Machine* const machine = emulator.machine();
@@ -156,6 +159,7 @@ void addAudioMethods( Dispatcher& dispatcher, Emulator& emulator )
 
   dispatcher.add(
       "audio.capture_stop",
+      info( "Ends the sound recording and completes the WAV file." ),
       [&emulator, recorder]( Json const& /*params*/ ) -> Outcome
       {
         if ( !*recorder )
@@ -178,6 +182,7 @@ void addAudioMethods( Dispatcher& dispatcher, Emulator& emulator )
       } );
 
   dispatcher.add( "audio.voices",
+                  info( "The ICS2115's active voices and their registers." ),
                   [&emulator]( Json const& /*params*/ ) -> Outcome
                   {
                     machine::Machine const* const machine = emulator.machine();

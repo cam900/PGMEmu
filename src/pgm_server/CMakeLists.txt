@@ -1,5 +1,6 @@
 add_library( pgm_server
-  src/JsonLinesServer.cpp )
+  src/JsonLinesServer.cpp
+  src/McpServer.cpp )
 
 add_library( pgm::server ALIAS pgm_server )
 

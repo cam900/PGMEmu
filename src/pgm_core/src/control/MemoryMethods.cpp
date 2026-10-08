@@ -36,6 +36,7 @@ std::string toHex( std::span<std::uint8_t const> bytes )
 void addMemoryMethods( Dispatcher& dispatcher, Emulator& emulator )
 {
   dispatcher.add( "memory.list_regions",
+                  info( "The names of the memory regions memory.read can read now." ),
                   [&emulator]( Json const& /*params*/ ) -> Outcome
                   {
                     Json names = Json::array();
@@ -48,6 +49,14 @@ void addMemoryMethods( Dispatcher& dispatcher, Emulator& emulator )
 
   dispatcher.add(
       "memory.read",
+      info( "Reads bytes of a memory region, at most 1 MB, answered as lowercase hex. Work RAM is in 68000 byte order: "
+            "the high byte of a word first.",
+            { { .name = "region",
+                .type = "string",
+                .description =
+                    "A name from memory.list_regions, such as WORK_RAM, VIDEO_RAM, PALETTE_RAM or AUDIO_RAM." },
+              { .name = "address", .type = "integer", .description = "The first byte's offset in the region." },
+              { .name = "size", .type = "integer", .description = "How many bytes, at most 1048576." } } ),
       [&emulator]( Json const& params ) -> Outcome
       {
         auto const name = requireString( params, "region" );

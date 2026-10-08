@@ -48,6 +48,18 @@ public:
   /// Whether the Z80 is held in reset by the 68000 (register 0xC00008 bit 0).
   [[nodiscard]] bool z80InReset() const;
 
+  /// Names its state for a save state (StateArchive.hpp).
+  template <class Archive>
+  void serialize( Archive& archive )
+  {
+    archive( mLatch );
+    archive( mZ80Ram );
+    archive( mZ80Nmi );
+    mRtc.serialize( archive );
+    archive( mZ80Pulses );
+    archive( mIcs2115DueAt );
+  }
+
 private:
   class Z80Side;
 

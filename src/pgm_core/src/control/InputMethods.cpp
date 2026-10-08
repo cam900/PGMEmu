@@ -109,6 +109,15 @@ void addInputMethods( Dispatcher& dispatcher, Emulator& emulator )
   for ( bool const pressed : { true, false } )
   {
     dispatcher.add( pressed ? "input.set" : "input.clear",
+                    pressed
+                        ? info( "Holds a control of player 1 down until input.clear.",
+                                { { .name = "name",
+                                    .type = "string",
+                                    .description = "up, down, left, right, button1 to button4, start or coin." } } )
+                        : info( "Lets a control of player 1 go.",
+                                { { .name = "name",
+                                    .type = "string",
+                                    .description = "up, down, left, right, button1 to button4, start or coin." } } ),
                     [target, hold, pressed]( Json const& params ) -> Outcome
                     {
                       auto const found = target( params );
@@ -122,6 +131,10 @@ void addInputMethods( Dispatcher& dispatcher, Emulator& emulator )
   }
 
   dispatcher.add( "input.press",
+                  info( "Presses a control of player 1 for two frames and releases it for two: four frames run.",
+                        { { .name = "name",
+                            .type = "string",
+                            .description = "up, down, left, right, button1 to button4, start or coin." } } ),
                   [target, hold]( Json const& params ) -> Outcome
                   {
                     auto const found = target( params );
@@ -142,6 +155,7 @@ void addInputMethods( Dispatcher& dispatcher, Emulator& emulator )
                   } );
 
   dispatcher.add( "input.get_state",
+                  info( "The controls held, in the RTL simulator's encoding." ),
                   [buttons]( Json const& /*params*/ ) -> Outcome { return Json{ { "buttons", *buttons } }; } );
 }
 

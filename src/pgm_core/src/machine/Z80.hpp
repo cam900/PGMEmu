@@ -4,6 +4,8 @@
 // floooh/chips' cycle-stepped z80.h (docs/decisions/0003-cpu-cores.md). One
 // tick is one T-state, one pulse of ce_8m. z80.h stays inside Z80.cpp.
 
+#include "StateArchive.hpp"
+
 #include "pgm/machine/Sound.hpp"
 
 #include <cstdint>
@@ -76,6 +78,11 @@ public:
   [[nodiscard]] Z80Registers registers() const;
   /// Loads the registers and starts fetching at their pc.
   void setRegisters( Z80Registers const& registers );
+
+  /// Names its state for a save state (StateArchive.hpp): z80.h's, its pins,
+  /// and what it was told of its interrupt lines and the bus.
+  void serialize( StateWriter& archive );
+  void serialize( StateReader& archive );
 
 private:
   struct State;

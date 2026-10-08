@@ -25,6 +25,19 @@ public:
   /// and `bit` is the data bit written; a read answers the bit read.
   bool access( Time now, bool write, bool bit );
 
+  /// Names its state for a save state (StateArchive.hpp).
+  template <class Archive>
+  void serialize( Archive& archive )
+  {
+    archive( mRam );
+    archive( mCounters );
+    archive( mSecondsApplied );
+    archive( mState );
+    archive( mAddress );
+    archive( mData );
+    archive( mOut );
+  }
+
 private:
   /// The eight counters of the clock, BCD, in the order of the RAM addresses
   /// 2..9 they are copied from and to.

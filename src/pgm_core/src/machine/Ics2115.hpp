@@ -72,6 +72,34 @@ public:
   /// How many voices are processed: register 0x0E plus one.
   [[nodiscard]] std::size_t activeVoices() const;
 
+  /// Names its state for a save state (StateArchive.hpp).
+  template <class Archive>
+  void serialize( Archive& archive )
+  {
+    archive( mVoices );
+    archive( mActiveOsc );
+    archive( mOscSelect );
+    archive( mRegSelect );
+    archive( mSysCtl );
+    archive( mIrqEnabled );
+    archive( mIrqPending );
+    archive( mTimerInt );
+    archive( mLastIrqVoice );
+    archive( mLowLatch );
+    archive( mPrevReadReg );
+    archive( mPrevReadWasLow );
+    archive( mOscIrqEnabled );
+    archive( mOscIrqPending );
+    archive( mVolIrqEnabled );
+    archive( mVolIrqPending );
+    archive( mTimers );
+    archive( mNoise );
+    archive( mPulses );
+    archive( mSampleCounter );
+    archive( mPass );
+    archive( mFrames );
+  }
+
 private:
   using Voice = Ics2115Voice;
 

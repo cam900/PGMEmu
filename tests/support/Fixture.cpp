@@ -33,7 +33,7 @@ std::filesystem::path Fixture::romDirectory() const
 
 pgm::Settings Fixture::settings() const
 {
-  return pgm::Settings{ .biosSources = { biosDirectory() }, .romDirectory = romDirectory() };
+  return pgm::Settings{ .biosSources = { biosDirectory() }, .romDirectory = romDirectory(), .stateDirectory = {} };
 }
 
 } // namespace pgm::test

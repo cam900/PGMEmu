@@ -56,16 +56,45 @@ void M68k::sync( int cycles )
   *mTime += static_cast<Time>( cycles ) * UNITS_PER_M68K_CYCLE;
 }
 
+void M68k::watch( WatchState& watch )
+{
+  mWatch = &watch;
+}
+
+void M68k::noteAccess( std::uint32_t address, bool write, std::uint16_t value, std::uint8_t bytes ) const
+{
+  // Moira puts the access's function code on fcl: instruction fetches, and
+  // reads relative to the PC, are program space.
+  if ( mWatch == nullptr || mWatch->points.empty() || mWatch->hit || ( !write && fcl == moira::FC::USER_PROG ) )
+  {
+    return;
+  }
+  address &= 0xffffffU;
+  for ( Watchpoint const& point : mWatch->points )
+  {
+    bool const kind = write ? point.write : point.read;
+    if ( kind && address + bytes > point.address && address < point.address + point.size )
+    {
+      mWatch->hit = WatchpointHit{ .address = address, .write = write, .value = value, .bytes = bytes };
+      return;
+    }
+  }
+}
+
 moira::u8 M68k::read8( moira::u32 addr ) const
 {
   bool const upper = ( addr & 1U ) == 0;
   std::uint16_t const word = mBus->read( addr, upper, !upper );
-  return static_cast<moira::u8>( upper ? word >> 8U : word );
+  auto const value = static_cast<moira::u8>( upper ? word >> 8U : word );
+  noteAccess( addr, false, value, 1 );
+  return value;
 }
 
 moira::u16 M68k::read16( moira::u32 addr ) const
 {
-  return mBus->read( addr, true, true );
+  std::uint16_t const value = mBus->read( addr, true, true );
+  noteAccess( addr, false, value, 2 );
+  return value;
 }
 
 moira::u32 M68k::read32( moira::u32 addr ) const
@@ -86,11 +115,13 @@ void M68k::write8( moira::u32 addr, moira::u8 val ) const
   // The 68000 drives a written byte on both halves of the data bus.
   auto const word = static_cast<std::uint16_t>( ( val << 8U ) | val );
   mBus->write( addr, word, upper, !upper );
+  noteAccess( addr, true, val, 1 );
 }
 
 void M68k::write16( moira::u32 addr, moira::u16 val ) const
 {
   mBus->write( addr, val, true, true );
+  noteAccess( addr, true, val, 2 );
 }
 
 void M68k::write32( moira::u32 addr, moira::u32 val ) const
