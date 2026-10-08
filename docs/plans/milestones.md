@@ -17,10 +17,4 @@ A session takes work by saying *build M<n> of docs/plans/milestones.md*. Every t
 Every milestone ends with an **exit** condition that can be checked without a person looking at
 a screen. That is why the control API and the headless runner come before most of the hardware.
 
-## M8: Finish
-
-*Delivers:*
-
-- CI green on macOS, Linux and Windows ([0022](../decisions/0022-ci-and-releases.md)): the
-  workflow, the packages and `PGMEmu.app` are in place, and its first runs on GitHub are to fix
-  what GCC and MSVC find.
+No milestone is open: M0 to M8 are built. A new one is added here when the owner decides it.

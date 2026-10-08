@@ -75,7 +75,7 @@ it, never "at the end of the session".
 - [Differences](hardware/differences.md): where the emulator departs from the RTL, and the RTL from the board
 
 ### Plans
-- [Milestones](plans/milestones.md): what is still to be built, from cartridge loading to protected games
+- [Milestones](plans/milestones.md): what is still to be built; none is open
 
 ### Open questions
 - [Open questions](open-questions.md)
