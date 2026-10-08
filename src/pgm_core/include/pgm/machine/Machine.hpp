@@ -77,6 +77,48 @@ struct TraceEntry
   std::int64_t ticks{};
 };
 
+/// Which of IGS023's layers the picture is drawn with: all of them, unless a
+/// debugger turns some off to see what lies under.
+struct VideoLayers
+{
+  bool text{ true };
+  bool background{ true };
+  bool sprites{ true };
+};
+
+/// One of the two tile layers.
+enum class TileLayer : std::uint8_t
+{
+  TEXT,
+  BACKGROUND
+};
+
+/// A sprite of the list sprite DMA copied, as its five words say it.
+struct SpriteInfo
+{
+  std::uint32_t x{};      // 11 bits
+  std::uint32_t y{};      // 10 bits
+  std::uint32_t scaleX{}; // 5 bits; 16 and above shrink
+  std::uint32_t scaleY{};
+  bool flipX{};
+  bool flipY{};
+  bool lowPriority{};
+  std::uint16_t palette{};
+  /// The word address of its masks in the B ROM.
+  std::uint32_t maskAddress{};
+  /// In 16-pixel units, and in lines.
+  std::uint32_t width{};
+  std::uint32_t height{};
+};
+
+/// A picture for a debugger: RGBA, row by row.
+struct Image
+{
+  int width{};
+  int height{};
+  std::vector<std::uint8_t> rgba;
+};
+
 struct RunResult
 {
   StopReason reason{};
@@ -166,8 +208,11 @@ public:
   [[nodiscard]] std::vector<TraceEntry> trace( std::size_t count ) const;
 
   /// The four input words of PGM.sv, IN0..IN3, with a set bit for a pressed
-  /// button; IN3's low byte is the DIP switches.
+  /// button; IN3's low byte is the DIP switches. What the control protocol
+  /// holds, and what the host's keyboard and pads hold, are set apart, and a
+  /// button either presses is pressed.
   void setInputs( std::array<std::uint16_t, 4> const& pressed );
+  void setHostInputs( std::array<std::uint16_t, 4> const& pressed );
 
   [[nodiscard]] std::span<std::uint8_t const> workRam() const;
   /// Replaces the work RAM, which the board keeps powered by its battery: what
@@ -182,6 +227,24 @@ public:
   [[nodiscard]] std::span<std::uint8_t const> picture() const;
   /// Pictures completed since power-up.
   [[nodiscard]] std::int64_t picturesDrawn() const;
+
+  /// Which layers the picture is drawn with, from the next line drawn on.
+  void setVideoLayers( VideoLayers layers );
+  [[nodiscard]] VideoLayers videoLayers() const;
+  /// IGS023's 16 registers, and its zoom table.
+  [[nodiscard]] std::array<std::uint16_t, 16> videoRegisters() const;
+  [[nodiscard]] std::array<std::uint16_t, 32> zoomTable() const;
+  /// The sprites of the list sprite DMA last copied, which the picture shows
+  /// from the next vertical blank.
+  [[nodiscard]] std::vector<SpriteInfo> sprites() const;
+  /// `count` tiles of a layer from tile code `first`, `columns` to a row, in
+  /// palette group `palette` (0 to 31). Transparent pixels are dark grey.
+  [[nodiscard]] Image tiles(
+      TileLayer layer, std::uint32_t first, std::uint32_t count, std::uint32_t columns, std::uint32_t palette ) const;
+  /// A layer's whole tile map, unscrolled: the text layer's 64 by 32 tiles,
+  /// the background's 64 by 16, all of it that its 4 KB of VRAM holds.
+  /// Transparent pixels are dark grey.
+  [[nodiscard]] Image tilemap( TileLayer layer ) const;
 
   /// The ICS2115's output during the last run, at its own rate: a frame per
   /// 32 of its clocks per active voice, about 33 kHz with all 32.

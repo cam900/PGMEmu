@@ -77,9 +77,10 @@ Json initializeResult( Json const& params )
 
 } // namespace
 
-McpServer::McpServer( control::Dispatcher const& dispatcher ) : mDispatcher{ dispatcher }
+McpServer::McpServer( std::vector<control::Method> methods, RequestHandler handler )
+    : mMethods{ std::move( methods ) }, mHandler{ std::move( handler ) }
 {
-  for ( control::Method const& method : mDispatcher.methods() )
+  for ( control::Method const& method : mMethods )
   {
     mTools.emplace( toolName( method.name ), method.name );
   }
@@ -99,6 +100,11 @@ void McpServer::serve( std::istream& in, std::ostream& out )
       out << *answer << '\n' << std::flush;
     }
   }
+}
+
+McpServer::McpServer( control::Dispatcher const& dispatcher )
+    : McpServer{ dispatcher.methods(), directHandler( dispatcher ) }
+{
 }
 
 std::optional<std::string> McpServer::handleLine( std::string const& line )
@@ -157,7 +163,7 @@ std::optional<Json> McpServer::handle( Json const& message )
 Json McpServer::listTools() const
 {
   Json tools = Json::array();
-  for ( control::Method const& method : mDispatcher.methods() )
+  for ( control::Method const& method : mMethods )
   {
     tools.push_back( Json{ { "name", toolName( method.name ) },
                            { "description", method.info.description },
@@ -189,7 +195,7 @@ std::optional<Json> McpServer::callTool( Json const& params, Json& error ) const
   // A tool's failure is its result, flagged, so that the agent reads why; only
   // a call that names no tool is a protocol error.
   Json const response =
-      mDispatcher.handle( Json{ { "id", 1 }, { "method", tool->second }, { "params", std::move( arguments ) } } );
+      mHandler( Json{ { "id", 1 }, { "method", tool->second }, { "params", std::move( arguments ) } } );
   if ( response.at( "ok" ) != true )
   {
     auto const& failure = response.at( "error" );

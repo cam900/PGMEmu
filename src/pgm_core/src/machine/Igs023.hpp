@@ -93,6 +93,17 @@ public:
   /// does not.
   [[nodiscard]] Time busHeldUntil() const;
 
+  /// What a debugger looks at: the layers drawn, the registers, the sprite
+  /// list sprite DMA last copied, and the tiles and tile maps as images.
+  void setLayers( VideoLayers layers );
+  [[nodiscard]] VideoLayers layers() const;
+  [[nodiscard]] std::array<std::uint16_t, 16> const& registers() const;
+  [[nodiscard]] std::array<std::uint16_t, 32> const& zoomTable() const;
+  [[nodiscard]] SpriteList const& spriteList() const;
+  [[nodiscard]] Image tiles(
+      TileLayer layer, std::uint32_t first, std::uint32_t count, std::uint32_t columns, std::uint32_t palette ) const;
+  [[nodiscard]] Image tilemap( TileLayer layer ) const;
+
   /// Raster position at `now`, for conditions and the debugger.
   [[nodiscard]] static int line( Time now );
   [[nodiscard]] static int dot( Time now );
@@ -130,6 +141,15 @@ private:
   /// Draws logical line `line`, 0 to 223, into the frame being built.
   void drawLine( int line );
   void drawText( int line, std::array<std::uint16_t, WIDTH>& out ) const;
+  /// The palette entry pixel (x, y) of a tile takes, or NONE where it is
+  /// transparent; the attributes byte's flips are applied. Text tiles are 8 by
+  /// 8 of 4 bits, background tiles 32 by 32 of 5.
+  [[nodiscard]] std::uint16_t
+  textPixel( std::uint32_t code, std::uint8_t attributes, std::uint32_t x, std::uint32_t y ) const;
+  [[nodiscard]] std::uint16_t
+  backgroundPixel( std::uint32_t code, std::uint8_t attributes, std::uint32_t x, std::uint32_t y ) const;
+  /// Palette entry `entry` as R, G, B, A.
+  [[nodiscard]] std::array<std::uint8_t, 4> colour( std::uint32_t entry ) const;
   void drawBackground( int line, std::array<std::uint16_t, WIDTH>& out ) const;
   [[nodiscard]] std::uint32_t tileRom( std::uint32_t address ) const;
   [[nodiscard]] std::uint8_t vramAt( std::size_t address ) const;
@@ -157,6 +177,7 @@ private:
   std::vector<std::uint8_t> mBuilding;
   std::vector<std::uint8_t> mFrame;
   std::int64_t mFramesCompleted{};
+  VideoLayers mLayers;
 };
 
 } // namespace pgm::machine

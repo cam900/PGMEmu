@@ -4,6 +4,7 @@
 
 #include <SDL3/SDL_audio.h>
 
+#include <atomic>
 #include <memory>
 #include <span>
 
@@ -27,7 +28,8 @@ public:
   AudioOutput( AudioOutput&& ) = delete;
   AudioOutput& operator=( AudioOutput&& ) = delete;
 
-  /// Queues `frames`, which come at `rate` frames per second.
+  /// Queues `frames`, which come at `rate` frames per second. Called from one
+  /// thread at a time; the other members are safe from any.
   void push( std::span<machine::AudioFrame const> frames, double rate );
 
   /// Seconds of sound queued and not yet played.
@@ -40,7 +42,8 @@ private:
   explicit AudioOutput( SDL_AudioStream* stream );
 
   SDL_AudioStream* mStream;
-  int mRate{};
+  /// Written by the emulation thread, read by the interface.
+  std::atomic<int> mRate{};
 };
 
 } // namespace pgm::app

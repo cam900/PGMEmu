@@ -1,11 +1,13 @@
 #pragma once
 
 #include "pgm/control/Dispatcher.hpp"
+#include "pgm/server/RequestHandler.hpp"
 
 #include <iosfwd>
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace pgm::server
 {
@@ -18,6 +20,10 @@ namespace pgm::server
 class McpServer
 {
 public:
+  /// Tools for `methods`, whose calls `handler` answers.
+  McpServer( std::vector<control::Method> methods, RequestHandler handler );
+
+  /// Tools for the dispatcher's methods, answered by it on the caller's thread.
   explicit McpServer( control::Dispatcher const& dispatcher );
 
   /// The stdio transport: a message per line in, a message per line out, until
@@ -35,7 +41,8 @@ private:
   [[nodiscard]] control::Json listTools() const;
   [[nodiscard]] std::optional<control::Json> callTool( control::Json const& params, control::Json& error ) const;
 
-  control::Dispatcher const& mDispatcher;
+  std::vector<control::Method> mMethods;
+  RequestHandler mHandler;
   /// Tool name to method name.
   std::unordered_map<std::string, std::string> mTools;
 };

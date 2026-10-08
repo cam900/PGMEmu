@@ -36,7 +36,21 @@ FetchContent_Declare( miniz
   GIT_SHALLOW    TRUE
   SYSTEM )
 
-FetchContent_MakeAvailable( CLI11 spdlog nlohmann_json miniz )
+# MCP's HTTP transport. A single header; upstream's build is not used, as it
+# looks for OpenSSL, zlib and Brotli, and the server needs none of them.
+FetchContent_Declare( httplib
+  GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
+  GIT_TAG        v0.60.1
+  GIT_SHALLOW    TRUE
+  SOURCE_SUBDIR  none
+  SYSTEM )
+
+FetchContent_MakeAvailable( CLI11 spdlog nlohmann_json miniz httplib )
+
+find_package( Threads REQUIRED )
+add_library( httplib INTERFACE )
+target_include_directories( httplib SYSTEM INTERFACE "${httplib_SOURCE_DIR}" )
+target_link_libraries( httplib INTERFACE Threads::Threads $<$<PLATFORM_ID:Windows>:ws2_32> )
 
 if( PGM_BUILD_APP )
   # Static, so that the application carries the SDL it was built and tested

@@ -3,11 +3,17 @@
 #include <istream>
 #include <ostream>
 #include <string>
+#include <utility>
 
 namespace pgm::server
 {
 
-JsonLinesServer::JsonLinesServer( control::Dispatcher const& dispatcher ) : mDispatcher{ dispatcher } {}
+JsonLinesServer::JsonLinesServer( RequestHandler handler ) : mHandler{ std::move( handler ) } {}
+
+JsonLinesServer::JsonLinesServer( control::Dispatcher const& dispatcher )
+    : JsonLinesServer{ directHandler( dispatcher ) }
+{
+}
 
 void JsonLinesServer::serve( std::istream& in, std::ostream& out ) const
 {
@@ -35,7 +41,7 @@ std::string JsonLinesServer::handleLine( std::string_view line ) const
                        { "error", { { "code", "bad_request" }, { "message", "Request is not valid JSON" } } } };
     return response.dump();
   }
-  return mDispatcher.handle( request ).dump();
+  return mHandler( request ).dump();
 }
 
 } // namespace pgm::server

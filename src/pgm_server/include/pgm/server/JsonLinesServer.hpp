@@ -1,6 +1,7 @@
 #pragma once
 
 #include "pgm/control/Dispatcher.hpp"
+#include "pgm/server/RequestHandler.hpp"
 
 #include <iosfwd>
 #include <string>
@@ -15,6 +16,8 @@ namespace pgm::server
 class JsonLinesServer
 {
 public:
+  explicit JsonLinesServer( RequestHandler handler );
+  /// Answers through `dispatcher` on the caller's thread.
   explicit JsonLinesServer( control::Dispatcher const& dispatcher );
 
   /// Answers every request read from `in` until it ends, flushing `out` after
@@ -26,7 +29,7 @@ public:
   [[nodiscard]] std::string handleLine( std::string_view line ) const;
 
 private:
-  control::Dispatcher const& mDispatcher;
+  RequestHandler mHandler;
 };
 
 } // namespace pgm::server

@@ -16,6 +16,11 @@ emulator matches it and what it adds.
 - stdout carries responses and nothing else. Logs go to stderr.
 - Serving ends when stdin ends.
 
+`pgmemu --server tcp:PORT` serves the same lines on TCP, on 127.0.0.1 only, while its window is
+open. Each connection is a session of its own; requests from all of them, and from the window,
+are answered in turn on the emulation thread, on the machine on screen
+([0012](../decisions/0012-network-transports.md)).
+
 ### MCP
 
 `pgmemu-cli --mcp` speaks the Model Context Protocol on stdio instead: JSON-RPC 2.0 messages, one
@@ -28,6 +33,12 @@ per line. It answers `initialize`, `ping`, `tools/list` and `tools/call`.
   `image`, and is taken out of the text.
 - A method's failure is a tool result with `isError` set, its text the error's code and message.
   Only a call that names no tool is a JSON-RPC error.
+
+`pgmemu --mcp-http PORT` serves MCP's Streamable HTTP transport at `http://127.0.0.1:PORT/mcp`
+while its window is open. A message is the body of a POST; a request's answer is the body of the
+response, as `application/json`, and a notification is answered `202 Accepted` with none. The
+server streams nothing, so a GET is answered `405`. A request whose `Origin` is not a page of
+`localhost` or `127.0.0.1` is answered `403`.
 
 ## 2. Requests
 
@@ -486,3 +497,52 @@ down 0x04, up 0x08, buttons 1 to 4 from 0x10), start at 0x10000, and the coin at
 ```json
 {"id":12,"ok":true,"result":{"buttons":65552}}
 ```
+
+### `video.registers`
+
+IGS023's 16 registers in `registers`, its zoom table in `zoom_table`, and the scroll registers
+named: `background_scroll` and `text_scroll` as `{"x","y"}`, `line_counter` and `flags`.
+
+### `video.sprites`
+
+The sprites of the list sprite DMA last copied from work RAM, at line 221: the picture shows
+them from the next vertical blank. In list order; a later sprite draws over an earlier one.
+
+```json
+{"id":9,"ok":true,"result":{"count":13,"sprites":[{"x":0,"y":40,"scale_x":16,"scale_y":16,"flip_x":false,
+  "flip_y":false,"low_priority":true,"palette":9,"mask_address":5601420,"width":28,"height":136}]}}
+```
+
+`width` is in 16-pixel units, `height` in lines, `mask_address` a word address in the B ROM.
+
+### `video.layers`
+
+Which of the text, background and sprite layers the picture is drawn with, to see what lies
+under one. `text`, `background` and `sprites` are booleans; those given are set, and the answer
+is all three. Lines drawn from then on, and so screenshots, follow it. It is a debugger's
+setting, not the machine's: save states do not hold it, and the next game loaded draws all three.
+
+### `video.tiles`
+
+Tiles from the tile ROMs as an image: the text layer's, 8 by 8, or the background's, 32 by 32.
+
+| Param | Meaning |
+|---|---|
+| `layer` | `text` or `background`. |
+| `first` | The first tile code; 0 if left out. |
+| `count` | How many, 1 to 4096; 256 if left out. |
+| `columns` | Tiles to a row; 16 if left out. |
+| `palette` | The layer's palette group, 0 to 31; 0 if left out. |
+| `path`, `format` | As below. |
+
+### `video.tilemap`
+
+A layer's whole tile map as an image, unscrolled: the text layer's 64 by 32 tiles (512 by 256
+pixels), and the background's 64 by 16 (2048 by 512), which is all its 4 KB of VRAM holds; the
+chip reads the 16 rows over and over down its 2048 lines. Takes `layer`, `path` and `format`.
+
+The images of `video.tiles` and `video.tilemap` show a transparent pixel dark grey. With `path`
+an image is written there as a PNG; without it, it comes back as a PNG in `png_base64`, or, with
+`format` `rgba`, as raw RGBA rows in `rgba_base64`. `width` and `height` come back either way.
+
+Errors: `not_loaded`, `bad_request`, `screenshot_failed`.

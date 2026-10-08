@@ -82,17 +82,18 @@ struct Sprite
 
   explicit Sprite( std::array<std::uint16_t, SpriteList::WORDS> const& words )
   {
-    x = words[0] & 0x7ffU;
-    scaleX = ( words[0] >> 11U ) & 0x1fU;
-    y = words[1] & 0x3ffU;
-    scaleY = ( words[1] >> 11U ) & 0x1fU;
-    maskAddress = ( static_cast<std::uint32_t>( words[2] & 0x7fU ) << 16U ) | words[3];
-    lowPriority = ( words[2] & 0x80U ) != 0;
-    palette = static_cast<std::uint16_t>( ( words[2] >> 8U ) & 0x1fU );
-    flipX = ( words[2] & 0x2000U ) != 0;
-    flipY = ( words[2] & 0x4000U ) != 0;
-    height = words[4] & 0x1ffU;
-    width = ( words[4] >> 9U ) & 0x3fU;
+    SpriteInfo const info = decodeSprite( words );
+    x = info.x;
+    scaleX = info.scaleX;
+    y = info.y;
+    scaleY = info.scaleY;
+    maskAddress = info.maskAddress;
+    lowPriority = info.lowPriority;
+    palette = info.palette;
+    flipX = info.flipX;
+    flipY = info.flipY;
+    height = info.height;
+    width = info.width;
     // Read backwards, a sprite starts where the next one's header is: past its
     // two header words and all its masks.
     maskBase = flipY ? ( maskAddress + 3 + ( width * height ) ) & 0x7fffffU : maskAddress;
@@ -320,6 +321,21 @@ private:
 };
 
 } // namespace
+
+SpriteInfo decodeSprite( std::array<std::uint16_t, SpriteList::WORDS> const& words )
+{
+  return SpriteInfo{ .x = words[0] & 0x7ffU,
+                     .y = words[1] & 0x3ffU,
+                     .scaleX = ( words[0] >> 11U ) & 0x1fU,
+                     .scaleY = ( words[1] >> 11U ) & 0x1fU,
+                     .flipX = ( words[2] & 0x2000U ) != 0,
+                     .flipY = ( words[2] & 0x4000U ) != 0,
+                     .lowPriority = ( words[2] & 0x80U ) != 0,
+                     .palette = static_cast<std::uint16_t>( ( words[2] >> 8U ) & 0x1fU ),
+                     .maskAddress = ( static_cast<std::uint32_t>( words[2] & 0x7fU ) << 16U ) | words[3],
+                     .width = ( words[4] >> 9U ) & 0x3fU,
+                     .height = words[4] & 0x1ffU };
+}
 
 SpriteList copySpriteList( std::span<std::uint8_t const> workRam )
 {

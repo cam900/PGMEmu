@@ -1,5 +1,7 @@
 #include "Igs023.hpp"
 
+#include <algorithm>
+
 #include <array>
 
 namespace pgm::machine
@@ -194,9 +196,57 @@ std::uint32_t Igs023::tileRom( std::uint32_t address ) const
   return mSdram.longWord( Sdram::BIOS_TILES_AT + address );
 }
 
+std::uint16_t Igs023::textPixel( std::uint32_t code, std::uint8_t attributes, std::uint32_t x, std::uint32_t y ) const
+{
+  // igs023_fg.sv: 8x8 tiles of 4 bits, a row of eight in one 32-bit word.
+  bool const flipY = ( attributes & 0x80U ) != 0;
+  bool const flipX = ( attributes & 0x40U ) != 0;
+  std::uint32_t const row = flipY ? ( ~y & 7U ) : ( y & 7U );
+  std::uint32_t const pixels = tileRom( ( code << 5U ) | ( row << 2U ) );
+  std::uint32_t const pixel = flipX ? 7 - ( x & 7U ) : ( x & 7U );
+  std::uint32_t const value = ( pixels >> ( pixel * 4 ) ) & 0xfU;
+  return value == 0xf ? NONE
+                      : static_cast<std::uint16_t>( TEXT_PALETTE + ( ( ( attributes >> 1U ) & 0x1fU ) << 4U ) + value );
+}
+
+std::uint16_t
+Igs023::backgroundPixel( std::uint32_t code, std::uint8_t attributes, std::uint32_t x, std::uint32_t y ) const
+{
+  // igs023_bg.sv: 32x32 tiles of 5 bits. A row is a stream of 160 bits, five
+  // pixels to a 5-bit group, lowest first, held in five 32-bit words.
+  bool const flipY = ( attributes & 0x80U ) != 0;
+  bool const flipX = ( attributes & 0x40U ) != 0;
+  std::uint32_t const row = flipY ? ( ~y & 31U ) : ( y & 31U );
+  std::uint32_t const pixel = flipX ? 31 - ( x & 31U ) : ( x & 31U );
+  std::uint32_t const rowAddress = ( ( code << 5U ) | row ) * 20;
+  std::uint32_t const bit = pixel * 5;
+  std::uint64_t const words =
+      tileRom( rowAddress + ( ( bit >> 5U ) * 4 ) ) |
+      ( static_cast<std::uint64_t>( tileRom( rowAddress + ( ( ( bit >> 5U ) + 1 ) * 4 ) ) ) << 32U );
+  std::uint32_t const value = static_cast<std::uint32_t>( words >> ( bit & 31U ) ) & 0x1fU;
+  return value == 0x1f
+             ? NONE
+             : static_cast<std::uint16_t>( BACKGROUND_PALETTE + ( ( ( attributes >> 1U ) & 0x1fU ) << 5U ) + value );
+}
+
+std::array<std::uint8_t, 4> Igs023::colour( std::uint32_t entry ) const
+{
+  // xRGB555, each 5-bit channel widened as PGM.sv widens it.
+  std::size_t const at = std::size_t{ entry & 0xfffU } * 2;
+  std::uint32_t const word = ( static_cast<std::uint32_t>( mPalette[at] ) << 8U ) | mPalette[at + 1];
+  std::array<std::uint8_t, 4> rgba{ 0, 0, 0, 0xff };
+  std::size_t channel = 0;
+  for ( unsigned const shift : { 10U, 5U, 0U } )
+  {
+    std::uint32_t const value = ( word >> shift ) & 0x1fU;
+    rgba.at( channel++ ) = static_cast<std::uint8_t>( ( value << 3U ) | ( value >> 2U ) );
+  }
+  return rgba;
+}
+
 void Igs023::drawText( int line, std::array<std::uint16_t, WIDTH>& out ) const
 {
-  // igs023_fg.sv: 8x8 tiles of 4 bits, a 64x32 map from 0x4000, 4 bytes a tile.
+  // A 64x32 map from 0x4000, 4 bytes a tile.
   std::uint32_t const y = ( static_cast<std::uint32_t>( line ) + mControl[SCROLL_FG_Y] ) & 0xffU;
   std::uint32_t const x = mControl[SCROLL_FG_X] & 0x1ffU;
   std::uint32_t const rowBase = 0x4000U + ( ( y >> 3U ) << 8U );
@@ -205,24 +255,14 @@ void Igs023::drawText( int line, std::array<std::uint16_t, WIDTH>& out ) const
     std::uint32_t const at = ( x & 7U ) + static_cast<std::uint32_t>( i );
     std::uint32_t const column = ( ( x >> 3U ) + ( at >> 3U ) ) & 63U;
     std::uint32_t const entry = rowBase + ( column * 4 );
-    std::uint32_t const code = vramWord( entry );
-    std::uint8_t const attributes = vramAt( entry + 2 );
-    bool const flipY = ( attributes & 0x80U ) != 0;
-    bool const flipX = ( attributes & 0x40U ) != 0;
-    std::uint32_t const row = flipY ? ( ~y & 7U ) : ( y & 7U );
-    std::uint32_t const pixels = tileRom( ( code << 5U ) | ( row << 2U ) );
-    std::uint32_t const pixel = flipX ? 7 - ( at & 7U ) : ( at & 7U );
-    std::uint32_t const value = ( pixels >> ( pixel * 4 ) ) & 0xfU;
-    out.at( static_cast<std::size_t>( i ) ) =
-        value == 0xf ? NONE
-                     : static_cast<std::uint16_t>( TEXT_PALETTE + ( ( ( attributes >> 1U ) & 0x1fU ) << 4U ) + value );
+    out.at( static_cast<std::size_t>( i ) ) = textPixel( vramWord( entry ), vramAt( entry + 2 ), at, y );
   }
 }
 
 void Igs023::drawBackground( int line, std::array<std::uint16_t, WIDTH>& out ) const
 {
-  // igs023_bg.sv: 32x32 tiles of 5 bits, 20 bytes a row, a 64-column map at
-  // 0x0000 folded into 4 KB, and a scroll word per line at 0x7000.
+  // A 64-column map at 0x0000 folded into 4 KB, and a scroll word per line at
+  // 0x7000.
   std::uint32_t const y = ( static_cast<std::uint32_t>( line ) + mControl[SCROLL_BG_Y] ) & 0x7ffU;
   std::uint32_t const scrollAt = 0x7000U + ( static_cast<std::uint32_t>( line ) << 1U );
   std::uint32_t const scroll = vramWord( scrollAt );
@@ -233,24 +273,8 @@ void Igs023::drawBackground( int line, std::array<std::uint16_t, WIDTH>& out ) c
     std::uint32_t const at = ( x & 31U ) + static_cast<std::uint32_t>( i );
     std::uint32_t const column = ( ( x >> 5U ) + ( at >> 5U ) ) & 63U;
     std::uint32_t const entry = rowBase + ( column * 4 );
-    std::uint32_t const code = vramWord( entry ) & 0x7fffU;
-    std::uint8_t const attributes = vramAt( entry + 2 );
-    bool const flipY = ( attributes & 0x80U ) != 0;
-    bool const flipX = ( attributes & 0x40U ) != 0;
-    std::uint32_t const row = flipY ? ( ~y & 31U ) : ( y & 31U );
-    std::uint32_t const pixel = flipX ? 31 - ( at & 31U ) : ( at & 31U );
-    // The row is a stream of 160 bits, five pixels to a 5-bit group, lowest
-    // first, held in five 32-bit words.
-    std::uint32_t const rowAddress = ( ( code << 5U ) | row ) * 20;
-    std::uint32_t const bit = pixel * 5;
-    std::uint64_t const words =
-        tileRom( rowAddress + ( ( bit >> 5U ) * 4 ) ) |
-        ( static_cast<std::uint64_t>( tileRom( rowAddress + ( ( ( bit >> 5U ) + 1 ) * 4 ) ) ) << 32U );
-    std::uint32_t const value = static_cast<std::uint32_t>( words >> ( bit & 31U ) ) & 0x1fU;
     out.at( static_cast<std::size_t>( i ) ) =
-        value == 0x1f
-            ? NONE
-            : static_cast<std::uint16_t>( BACKGROUND_PALETTE + ( ( ( attributes >> 1U ) & 0x1fU ) << 5U ) + value );
+        backgroundPixel( vramWord( entry ) & 0x7fffU, vramAt( entry + 2 ), at, y );
   }
 }
 
@@ -258,9 +282,18 @@ void Igs023::drawLine( int line )
 {
   std::array<std::uint16_t, WIDTH> text{};
   std::array<std::uint16_t, WIDTH> background{};
-  drawText( line, text );
-  drawBackground( line, background );
-  SpriteLine const& sprites = mSprites->at( static_cast<std::size_t>( line ) );
+  text.fill( NONE );
+  background.fill( NONE );
+  if ( mLayers.text )
+  {
+    drawText( line, text );
+  }
+  if ( mLayers.background )
+  {
+    drawBackground( line, background );
+  }
+  static SpriteLine const NO_SPRITES{};
+  SpriteLine const& sprites = mLayers.sprites ? mSprites->at( static_cast<std::size_t>( line ) ) : NO_SPRITES;
 
   std::size_t at = static_cast<std::size_t>( line ) * WIDTH * 4;
   for ( std::size_t i = 0; i < WIDTH; ++i )
@@ -283,16 +316,117 @@ void Igs023::drawLine( int line )
       word = background[i];
     }
 
-    // xRGB555, each 5-bit channel widened as PGM.sv widens it.
-    std::uint32_t const colour = ( static_cast<std::uint32_t>( mPalette[std::size_t{ word } * 2] ) << 8U ) |
-                                 mPalette[( std::size_t{ word } * 2 ) + 1];
-    for ( unsigned const shift : { 10U, 5U, 0U } )
+    for ( std::uint8_t const channel : colour( word ) )
     {
-      std::uint32_t const channel = ( colour >> shift ) & 0x1fU;
-      mBuilding[at++] = static_cast<std::uint8_t>( ( channel << 3U ) | ( channel >> 2U ) );
+      mBuilding[at++] = channel;
     }
-    mBuilding[at++] = 0xff;
   }
+}
+
+void Igs023::setLayers( VideoLayers layers )
+{
+  mLayers = layers;
+}
+
+VideoLayers Igs023::layers() const
+{
+  return mLayers;
+}
+
+std::array<std::uint16_t, 16> const& Igs023::registers() const
+{
+  return mControl;
+}
+
+std::array<std::uint16_t, 32> const& Igs023::zoomTable() const
+{
+  return mZoomTable;
+}
+
+SpriteList const& Igs023::spriteList() const
+{
+  return mSpriteList;
+}
+
+namespace
+{
+
+/// Where a debugger's picture shows a transparent pixel.
+constexpr std::array<std::uint8_t, 4> TRANSPARENT_GREY{ 0x20, 0x20, 0x20, 0xff };
+
+void putPixel( Image& image, int x, int y, std::array<std::uint8_t, 4> const& rgba )
+{
+  std::size_t const at =
+      ( ( static_cast<std::size_t>( y ) * static_cast<std::size_t>( image.width ) ) + static_cast<std::size_t>( x ) ) *
+      4;
+  std::ranges::copy( rgba, image.rgba.begin() + static_cast<std::ptrdiff_t>( at ) );
+}
+
+} // namespace
+
+Image Igs023::tiles(
+    TileLayer layer, std::uint32_t first, std::uint32_t count, std::uint32_t columns, std::uint32_t palette ) const
+{
+  bool const text = layer == TileLayer::TEXT;
+  int const size = text ? 8 : 32;
+  columns = std::clamp( columns, 1U, std::max( count, 1U ) );
+  std::uint32_t const rows = ( count + columns - 1 ) / columns;
+  Image image{ .width = static_cast<int>( columns ) * size, .height = static_cast<int>( rows ) * size, .rgba = {} };
+  image.rgba.assign( static_cast<std::size_t>( image.width ) * static_cast<std::size_t>( image.height ) * 4, 0 );
+  // The palette group sits in the attributes byte's bits 1-5.
+  auto const attributes = static_cast<std::uint8_t>( ( palette & 0x1fU ) << 1U );
+  for ( std::uint32_t i = 0; i < count; ++i )
+  {
+    std::uint32_t const code = first + i;
+    int const left = static_cast<int>( i % columns ) * size;
+    int const top = static_cast<int>( i / columns ) * size;
+    for ( int y = 0; y < size; ++y )
+    {
+      for ( int x = 0; x < size; ++x )
+      {
+        auto const ux = static_cast<std::uint32_t>( x );
+        auto const uy = static_cast<std::uint32_t>( y );
+        std::uint16_t const entry =
+            text ? textPixel( code, attributes, ux, uy ) : backgroundPixel( code & 0x7fffU, attributes, ux, uy );
+        putPixel( image, left + x, top + y, entry == NONE ? TRANSPARENT_GREY : colour( entry ) );
+      }
+    }
+  }
+  return image;
+}
+
+Image Igs023::tilemap( TileLayer layer ) const
+{
+  bool const text = layer == TileLayer::TEXT;
+  int const size = text ? 8 : 32;
+  int const columns = 64;
+  // The background's map is folded into 4 KB: 16 rows of 64, repeating.
+  int const rows = text ? 32 : 16;
+  Image image{ .width = columns * size, .height = rows * size, .rgba = {} };
+  image.rgba.assign( static_cast<std::size_t>( image.width ) * static_cast<std::size_t>( image.height ) * 4, 0 );
+  for ( int row = 0; row < rows; ++row )
+  {
+    for ( int column = 0; column < columns; ++column )
+    {
+      std::uint32_t const entry = ( text ? 0x4000U : 0U ) + ( static_cast<std::uint32_t>( row ) << 8U ) +
+                                  ( static_cast<std::uint32_t>( column ) * 4 );
+      std::uint32_t const code = text ? vramWord( entry ) : vramWord( entry ) & 0x7fffU;
+      std::uint8_t const attributes = vramAt( entry + 2 );
+      for ( int y = 0; y < size; ++y )
+      {
+        for ( int x = 0; x < size; ++x )
+        {
+          auto const ux = static_cast<std::uint32_t>( x );
+          auto const uy = static_cast<std::uint32_t>( y );
+          std::uint16_t const pixel =
+              text ? textPixel( code, attributes, ux, uy ) : backgroundPixel( code, attributes, ux, uy );
+          putPixel(
+              image, ( column * size ) + x, ( row * size ) + y, pixel == NONE ? TRANSPARENT_GREY : colour( pixel ) );
+        }
+      }
+    }
+  }
+  return image;
 }
 
 std::span<std::uint8_t const> Igs023::frame() const

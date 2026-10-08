@@ -167,6 +167,17 @@ struct Machine::Parts
   Sdram sdram;
   std::array<std::uint8_t, 0x20000> workRam{};
   InputPorts inputs;
+  std::array<std::uint16_t, 4> protocolInputs{};
+  std::array<std::uint16_t, 4> hostInputs{};
+
+  void applyInputs()
+  {
+    for ( std::size_t i = 0; i < inputs.pressed.size(); ++i )
+    {
+      inputs.pressed.at( i ) = static_cast<std::uint16_t>( protocolInputs.at( i ) | hostInputs.at( i ) );
+    }
+  }
+
   Igs023 video;
   Z80 z80;
   Ics2115 ics2115;
@@ -459,7 +470,14 @@ std::vector<TraceEntry> Machine::trace( std::size_t count ) const
 
 void Machine::setInputs( std::array<std::uint16_t, 4> const& pressed )
 {
-  mParts->inputs.pressed = pressed;
+  mParts->protocolInputs = pressed;
+  mParts->applyInputs();
+}
+
+void Machine::setHostInputs( std::array<std::uint16_t, 4> const& pressed )
+{
+  mParts->hostInputs = pressed;
+  mParts->applyInputs();
 }
 
 void Machine::setWorkRam( std::span<std::uint8_t const> bytes )
@@ -500,6 +518,49 @@ Z80Registers Machine::z80Registers() const
 bool Machine::z80Halted() const
 {
   return mParts->z80.halted();
+}
+
+void Machine::setVideoLayers( VideoLayers layers )
+{
+  mParts->video.setLayers( layers );
+}
+
+VideoLayers Machine::videoLayers() const
+{
+  return mParts->video.layers();
+}
+
+std::array<std::uint16_t, 16> Machine::videoRegisters() const
+{
+  return mParts->video.registers();
+}
+
+std::array<std::uint16_t, 32> Machine::zoomTable() const
+{
+  return mParts->video.zoomTable();
+}
+
+std::vector<SpriteInfo> Machine::sprites() const
+{
+  SpriteList const& list = mParts->video.spriteList();
+  std::vector<SpriteInfo> sprites;
+  sprites.reserve( list.count );
+  for ( std::size_t i = 0; i < list.count; ++i )
+  {
+    sprites.push_back( decodeSprite( list.entries.at( i ) ) );
+  }
+  return sprites;
+}
+
+Image Machine::tiles(
+    TileLayer layer, std::uint32_t first, std::uint32_t count, std::uint32_t columns, std::uint32_t palette ) const
+{
+  return mParts->video.tiles( layer, first, count, columns, palette );
+}
+
+Image Machine::tilemap( TileLayer layer ) const
+{
+  return mParts->video.tilemap( layer );
 }
 
 std::span<AudioFrame const> Machine::audio() const

@@ -6,6 +6,7 @@ add_executable( pgm_tests
   control/AudioAndInputTest.cpp
   control/DispatcherTest.cpp
   control/LoadAndMemoryTest.cpp
+  control/VideoMethodsTest.cpp
   cpu/M68kSingleStepTest.cpp
   cpu/Z80SingleStepTest.cpp
   io/RomSourcesTest.cpp
@@ -18,6 +19,7 @@ add_executable( pgm_tests
   machine/V3021Test.cpp
   server/JsonLinesServerTest.cpp
   server/McpServerTest.cpp
+  server/NetworkServersTest.cpp
   support/Files.cpp
   support/Fixture.cpp
   support/PgmFile.cpp
@@ -44,7 +46,7 @@ target_include_directories( pgm_tests SYSTEM PRIVATE
   $<TARGET_PROPERTY:moira,INTERFACE_INCLUDE_DIRECTORIES> )
 
 target_link_libraries( pgm_tests
-  PRIVATE pgm::server Catch2::Catch2WithMain pgm::warnings )
+  PRIVATE pgm::server Catch2::Catch2WithMain pgm::warnings httplib )
 
 include( Catch )
 catch_discover_tests( pgm_tests )

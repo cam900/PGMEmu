@@ -159,9 +159,12 @@ gamepad handling and debugger layout; none of its code is used
 
 **Threads:**
 
-- The core runs on its own emulation thread and publishes finished frames into a triple buffer.
-- The GUI thread never touches the core. It reads frames and sends dispatcher requests through
-  a queue, the same path the network transports use.
+- The core runs on its own emulation thread (`EmulationThread`). It runs frames at the board's
+  pace, and between two frames answers the requests queued for it. It hands each finished
+  picture over under a lock, and its sound straight to the audio stream.
+- The GUI thread never touches the core. It takes pictures and sends dispatcher requests through
+  the queue, the same path the network transports use; the keyboard reaches the machine as the
+  host's inputs, apart from those the protocol holds.
 - Headless mode has one thread.
 
 **Pacing:** the host's monotonic clock paces the emulation at the board's 59.19 frames a

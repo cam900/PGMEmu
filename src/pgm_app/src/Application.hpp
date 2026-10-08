@@ -1,10 +1,15 @@
 #pragma once
 
 #include "AudioOutput.hpp"
-#include "ScreenTexture.hpp"
+#include "EmulationThread.hpp"
+#include "GpuTexture.hpp"
+#include "VideoWindow.hpp"
 
 #include "pgm/Emulator.hpp"
 #include "pgm/control/Dispatcher.hpp"
+#include "pgm/server/McpHttpServer.hpp"
+#include "pgm/server/McpServer.hpp"
+#include "pgm/server/TcpLineServer.hpp"
 
 #include <SDL3/SDL_gpu.h>
 #include <SDL3/SDL_video.h>
@@ -28,6 +33,12 @@ public:
   /// any of them cannot be had. `settings` say where games and the BIOS are.
   static std::expected<std::unique_ptr<Application>, std::string> create( Settings settings );
 
+  /// Serves the control protocol to other programs while the window is open:
+  /// JSON-lines on TCP `linePort`, MCP over HTTP on `mcpPort`, each unless 0.
+  /// Their requests run on the emulation thread, on the machine on screen.
+  /// Throws std::runtime_error when a port cannot be had.
+  void serve( std::uint16_t linePort, std::uint16_t mcpPort );
+
   /// Loads a game by set name or path, through the dispatcher, as an agent
   /// would; a failure is shown in the status window.
   void loadGame( std::string const& nameOrPath );
@@ -45,10 +56,12 @@ public:
 private:
   Application( SDL_Window* window, SDL_GPUDevice* device, Settings settings );
 
-  /// Runs the machine for as many frames as the time since the last call
-  /// holds, if a game is loaded and it is not paused; plays their sound and
-  /// takes the last picture completed.
-  void emulate();
+  /// Answers a request of the control protocol, on the emulation thread.
+  control::Json request( std::string const& method, control::Json params = control::Json::object() );
+
+  /// Hands the keyboard to the emulation thread, and takes the last picture
+  /// it completed.
+  void updateEmulation();
 
   /// Lays out one frame of the user interface.
   void drawInterface();
@@ -62,20 +75,22 @@ private:
 
   SDL_Window* mWindow;
   SDL_GPUDevice* mDevice;
-  std::unique_ptr<ScreenTexture> mScreen;
+  std::unique_ptr<GpuTexture> mScreen;
   std::vector<std::uint8_t> mFrame;
   bool mFrameChanged{ true };
-  Emulator mEmulator;
-  control::Dispatcher mDispatcher;
   /// Null when no audio device could be opened: the emulation then runs
   /// silent, paced by the clock alone.
   std::unique_ptr<AudioOutput> mAudio;
-  std::uint64_t mLastTicksNs{};
-  double mFramesOwed{};
+  std::unique_ptr<EmulationThread> mEmulation;
+  std::unique_ptr<server::TcpLineServer> mLineServer;
+  std::unique_ptr<server::McpServer> mMcp;
+  std::unique_ptr<server::McpHttpServer> mMcpHttp;
+  std::unique_ptr<VideoWindow> mVideo;
   std::string mImguiIniPath;
   bool mQuit{};
   bool mShowStatus{ true };
   bool mShowSound{};
+  bool mShowVideo{};
   bool mPaused{};
   /// Whether the screen window had focus when the interface was last drawn.
   bool mScreenFocused{};

@@ -9,6 +9,7 @@
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_sdlgpu3.h>
+#include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <array>
@@ -32,14 +33,7 @@ constexpr int INITIAL_HEIGHT = 900;
 constexpr char const* SCREEN_WINDOW = "Screen";
 constexpr char const* STATUS_WINDOW = "Status";
 constexpr char const* SOUND_WINDOW = "Sound";
-
-/// The board's frame rate, some 59.19 Hz, per nanosecond of the host's clock.
-constexpr double FRAMES_PER_NANOSECOND =
-    static_cast<double>( machine::UNITS_PER_SECOND ) / static_cast<double>( machine::UNITS_PER_FRAME ) / 1e9;
-
-/// The most frames run to catch up: after a stall, such as a dragged window,
-/// the rest of the backlog is dropped rather than run at full speed.
-constexpr double MAX_FRAMES_OWED = 4.0;
+constexpr char const* VIDEO_WINDOW = "Video";
 
 std::string sdlError( std::string const& what )
 {
@@ -94,9 +88,13 @@ std::expected<std::unique_ptr<Application>, std::string> Application::create( Se
 }
 
 Application::Application( SDL_Window* window, SDL_GPUDevice* device, Settings settings )
-    : mWindow{ window }, mDevice{ device }, mScreen{ std::make_unique<ScreenTexture>( device ) },
-      mFrame{ makeTestPattern() }, mEmulator{ std::move( settings ) }, mDispatcher{ mEmulator },
-      mAudio{ AudioOutput::open() }
+    : mWindow{ window }, mDevice{ device },
+      mScreen{ std::make_unique<GpuTexture>( device, video::SCREEN_WIDTH, video::SCREEN_HEIGHT ) },
+      mFrame{ makeTestPattern() }, mAudio{ AudioOutput::open() },
+      mEmulation{ std::make_unique<EmulationThread>( std::move( settings ), mAudio.get() ) },
+      mVideo{ std::make_unique<VideoWindow>( device,
+                                             [this]( std::string const& method, control::Json params )
+                                             { return request( method, std::move( params ) ); } ) }
 {
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
@@ -136,6 +134,13 @@ Application::~Application()
   ImGui_ImplSDLGPU3_Shutdown();
   ImGui::DestroyContext();
   mScreen.reset();
+  mVideo.reset();
+  // The servers hand requests to the emulation thread, which feeds the audio
+  // stream: they go in that order.
+  mMcpHttp.reset();
+  mMcp.reset();
+  mLineServer.reset();
+  mEmulation.reset();
   mAudio.reset();
   SDL_ReleaseWindowFromGPUDevice( mDevice, mWindow );
   SDL_DestroyGPUDevice( mDevice );
@@ -166,7 +171,7 @@ void Application::run()
       continue;
     }
 
-    emulate();
+    updateEmulation();
 
     ImGui_ImplSDLGPU3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
@@ -177,56 +182,46 @@ void Application::run()
   }
 }
 
+control::Json Application::request( std::string const& method, control::Json params )
+{
+  return mEmulation->handle( control::Json{ { "id", 1 }, { "method", method }, { "params", std::move( params ) } } );
+}
+
+void Application::serve( std::uint16_t linePort, std::uint16_t mcpPort )
+{
+  auto const handler = [this]( control::Json const& request ) { return mEmulation->handle( request ); };
+  if ( linePort != 0 )
+  {
+    mLineServer = std::make_unique<server::TcpLineServer>( linePort, handler );
+    spdlog::info( "serving JSON-lines on 127.0.0.1:{}", mLineServer->port() );
+  }
+  if ( mcpPort != 0 )
+  {
+    mMcp = std::make_unique<server::McpServer>( mEmulation->methods(), handler );
+    mMcpHttp = std::make_unique<server::McpHttpServer>( mcpPort, *mMcp );
+    spdlog::info( "serving MCP on http://127.0.0.1:{}/mcp", mMcpHttp->port() );
+  }
+}
+
 void Application::loadGame( std::string const& nameOrPath )
 {
   bool const isPath = nameOrPath.find_first_of( "/.\\" ) != std::string::npos;
-  auto const response = mDispatcher.handle( control::Json{
-      { "id", 1 }, { "method", "emu.load_game" }, { "params", { { isPath ? "path" : "name", nameOrPath } } } } );
+  auto const response = request( "emu.load_game", { { isPath ? "path" : "name", nameOrPath } } );
   mLastError = response.at( "ok" ) == true ? std::string{} : response.at( "error" ).at( "message" ).get<std::string>();
-  mPicturesShown = -1;
 }
 
-void Application::emulate()
+void Application::updateEmulation()
 {
-  // The frame loop drives the machine directly: it is the frontend's own clock,
-  // not a capability, and going through JSON sixty times a second buys nothing.
-  std::uint64_t const now = SDL_GetTicksNS();
-  std::uint64_t const elapsed = mLastTicksNs == 0 ? 0 : now - mLastTicksNs;
-  mLastTicksNs = now;
-  machine::Machine* const machine = mEmulator.machine();
-  if ( machine == nullptr || mPaused )
+  // The game has the keyboard while its screen has focus, or nothing of the
+  // interface does. ImGui's keyboard navigation asks for the keyboard whenever
+  // any of its windows has focus, the screen's included, so its request alone
+  // cannot decide. A text field being edited keeps it.
+  ImGuiIO const& io = ImGui::GetIO();
+  bool const toGame = !io.WantTextInput && ( mScreenFocused || !io.WantCaptureKeyboard );
+  mEmulation->setKeyboard( toGame ? inputsFromKeyboard( SDL_GetKeyboardState( nullptr ) )
+                                  : std::array<std::uint16_t, 4>{} );
+  if ( mEmulation->takePicture( mPicturesShown, mFrame ) )
   {
-    mFramesOwed = 0.0;
-    return;
-  }
-
-  // The host's clock paces the emulation, so that it runs at the board's
-  // speed whatever the display's refresh rate. The audio device's clock
-  // drifts from it; AudioOutput absorbs that.
-  mFramesOwed = std::min( mFramesOwed + ( static_cast<double>( elapsed ) * FRAMES_PER_NANOSECOND ), MAX_FRAMES_OWED );
-  while ( mFramesOwed >= 1.0 )
-  {
-    mFramesOwed -= 1.0;
-    // The game has the keyboard while its screen has focus, or nothing of
-    // the interface does. ImGui's keyboard navigation asks for the keyboard
-    // whenever any of its windows has focus, the screen's included, so its
-    // request alone cannot decide. A text field being edited keeps it.
-    ImGuiIO const& io = ImGui::GetIO();
-    bool const toGame = !io.WantTextInput && ( mScreenFocused || !io.WantCaptureKeyboard );
-    machine->setInputs( toGame ? inputsFromKeyboard( SDL_GetKeyboardState( nullptr ) )
-                               : std::array<std::uint16_t, 4>{} );
-    machine->runFrames( 1 );
-    if ( mAudio )
-    {
-      mAudio->push( machine->audio(), machine->audioRate() );
-    }
-  }
-
-  if ( machine->picturesDrawn() != mPicturesShown )
-  {
-    mPicturesShown = machine->picturesDrawn();
-    auto const picture = machine->picture();
-    mFrame.assign( picture.begin(), picture.end() );
     mFrameChanged = true;
   }
 }
@@ -242,6 +237,7 @@ void Application::drawInterface()
   drawScreenWindow();
   drawStatusWindow();
   drawSoundWindow();
+  mVideo->draw( mShowVideo );
 
   if ( mShowImguiDemo )
   {
@@ -265,14 +261,13 @@ void Application::drawMenuBar()
   }
   if ( ImGui::BeginMenu( "Emulation" ) )
   {
-    if ( ImGui::MenuItem( "Pause", nullptr, &mPaused ) && mPaused && mAudio )
+    if ( ImGui::MenuItem( "Pause", nullptr, &mPaused ) )
     {
-      mAudio->clear();
+      mEmulation->setPaused( mPaused );
     }
     if ( ImGui::MenuItem( "Reset" ) )
     {
-      static_cast<void>( mDispatcher.handle(
-          control::Json{ { "id", 1 }, { "method", "emu.reset" }, { "params", { { "cycles", 100 } } } } ) );
+      static_cast<void>( request( "emu.reset", { { "cycles", 100 } } ) );
     }
     ImGui::EndMenu();
   }
@@ -280,6 +275,7 @@ void Application::drawMenuBar()
   {
     ImGui::MenuItem( STATUS_WINDOW, nullptr, &mShowStatus );
     ImGui::MenuItem( SOUND_WINDOW, nullptr, &mShowSound );
+    ImGui::MenuItem( VIDEO_WINDOW, nullptr, &mShowVideo );
     ImGui::Separator();
     ImGui::MenuItem( "ImGui demo", nullptr, &mShowImguiDemo );
     ImGui::EndMenu();
@@ -326,7 +322,7 @@ void Application::drawStatusWindow()
   {
     // Asked through the dispatcher, as an agent would ask, so that what the
     // window shows is what the protocol answers.
-    auto const response = mDispatcher.handle( control::Json{ { "id", 1 }, { "method", "emu.status" } } );
+    auto const response = request( "emu.status" );
     if ( response.at( "ok" ) == true )
     {
       ImGui::Text( "Version: %s", response.at( "result" ).at( "version" ).get_ref<std::string const&>().c_str() );
@@ -370,7 +366,7 @@ void Application::drawSoundWindow()
     }
 
     // The voices, as `audio.voices` reports them.
-    auto const response = mDispatcher.handle( control::Json{ { "id", 1 }, { "method", "audio.voices" } } );
+    auto const response = request( "audio.voices" );
     if ( response.at( "ok" ) != true )
     {
       ImGui::TextUnformatted( "No game loaded" );
@@ -439,6 +435,7 @@ void Application::renderFrame()
     mScreen->upload( commands, mFrame );
     mFrameChanged = false;
   }
+  mVideo->upload( commands );
 
   SDL_GPUTexture* swapchain = nullptr;
   if ( SDL_WaitAndAcquireGPUSwapchainTexture( commands, mWindow, &swapchain, nullptr, nullptr ) &&

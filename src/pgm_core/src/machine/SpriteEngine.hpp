@@ -9,6 +9,8 @@
 
 #include "Sdram.hpp"
 
+#include "pgm/machine/Machine.hpp"
+
 #include <array>
 #include <cstdint>
 #include <span>
@@ -25,6 +27,9 @@ struct SpriteList
   std::array<std::array<std::uint16_t, WORDS>, MAX_SPRITES> entries{};
   std::size_t count{};
 };
+
+/// What a sprite list entry's five words say.
+[[nodiscard]] SpriteInfo decodeSprite( std::array<std::uint16_t, SpriteList::WORDS> const& words );
 
 /// One line of the sprite layer, as the RTL's line buffer holds it: bit 11 set
 /// where a sprite drew, bit 10 its priority, bits 9-5 its palette and bits 4-0

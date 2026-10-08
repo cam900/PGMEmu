@@ -1,6 +1,8 @@
 add_library( pgm_server
   src/JsonLinesServer.cpp
-  src/McpServer.cpp )
+  src/McpHttpServer.cpp
+  src/McpServer.cpp
+  src/TcpLineServer.cpp )
 
 add_library( pgm::server ALIAS pgm_server )
 
@@ -8,4 +10,4 @@ target_include_directories( pgm_server PUBLIC include )
 
 target_link_libraries( pgm_server
   PUBLIC  pgm::core
-  PRIVATE pgm::warnings )
+  PRIVATE pgm::warnings httplib Threads::Threads $<$<PLATFORM_ID:Windows>:ws2_32> )
