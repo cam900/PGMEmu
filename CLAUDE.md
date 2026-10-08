@@ -12,7 +12,8 @@ cmake --preset debug && cmake --build --preset debug && ctest --preset debug
 ```
 
 Presets: `debug`, `release`, `asan`. Never create build directories by hand;
-the presets own `build/<preset>`. `-DPGM_BUILD_APP=OFF` at configure leaves out
+the presets own `build/<preset>`. The test presets run tests in parallel on
+every core; the release suite takes about 70 s. `-DPGM_BUILD_APP=OFF` at configure leaves out
 the desktop application and with it SDL3 and ImGui.
 
 ```sh

@@ -66,6 +66,7 @@ it, never "at the end of the session".
 - [0017: Vertical games are known by their image's flag](decisions/0017-vertical-games-by-image-flag.md)
 - [0018: Rewind keeps a whole state for every frame](decisions/0018-rewind-keeps-every-frame.md)
 - [0019: Run-ahead is one setting for every game, off unless chosen](decisions/0019-run-ahead.md)
+- [0020: The core stays on one thread until a machine cannot keep up](decisions/0020-the-core-stays-single-threaded.md)
 
 ### Hardware
 - [Differences](hardware/differences.md): where the emulator departs from the RTL, and the RTL from the board

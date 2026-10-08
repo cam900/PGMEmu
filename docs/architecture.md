@@ -175,6 +175,9 @@ gamepad handling and debugger layout; none of its code is used
   the queue, the same path the network transports use; the keyboard reaches the machine as the
   host's inputs, apart from those the protocol holds.
 - Headless mode has one thread.
+- The core's chips share one thread. Splitting them across threads was measured and put off
+  until a machine cannot keep a game in real time
+  ([0020](decisions/0020-the-core-stays-single-threaded.md)).
 
 **Pacing:** the host's monotonic clock paces the emulation at the board's 59.19 frames a
 second, whatever the display's refresh rate. The sound goes to an SDL audio stream at the chip's

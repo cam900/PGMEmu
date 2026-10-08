@@ -45,9 +45,9 @@
     { "name": "windows", "configurePreset": "windows", "configuration": "Debug" }
   ],
   "testPresets": [
-    { "name": "debug",   "configurePreset": "debug",   "output": { "outputOnFailure": true } },
-    { "name": "release", "configurePreset": "release", "output": { "outputOnFailure": true } },
-    { "name": "asan",    "configurePreset": "asan",    "output": { "outputOnFailure": true } },
-    { "name": "windows", "configurePreset": "windows", "configuration": "Debug", "output": { "outputOnFailure": true } }
+    { "name": "debug",   "configurePreset": "debug",   "output": { "outputOnFailure": true }, "execution": { "jobs": 0 } },
+    { "name": "release", "configurePreset": "release", "output": { "outputOnFailure": true }, "execution": { "jobs": 0 } },
+    { "name": "asan",    "configurePreset": "asan",    "output": { "outputOnFailure": true }, "execution": { "jobs": 0 } },
+    { "name": "windows", "configurePreset": "windows", "configuration": "Debug", "output": { "outputOnFailure": true }, "execution": { "jobs": 0 } }
   ]
 }
