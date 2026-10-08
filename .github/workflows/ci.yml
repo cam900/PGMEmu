@@ -76,19 +76,19 @@ jobs:
 
       - name: Configure (macOS)
         if: runner.os == 'macOS'
-        run: cmake --preset release -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0
+        run: cmake --preset release -DPGM_WERROR=ON -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0
 
       - name: Configure (Linux)
         if: runner.os == 'Linux'
         env:
           CC: gcc-14
           CXX: g++-14
-        run: cmake --preset release
+        run: cmake --preset release -DPGM_WERROR=ON
 
       # The C runtime linked in, so that no Visual C++ redistributable is needed.
       - name: Configure (Windows)
         if: runner.os == 'Windows'
-        run: cmake --preset windows "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded$<$<CONFIG:Debug>:Debug>"
+        run: cmake --preset windows -DPGM_WERROR=ON "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded$<$<CONFIG:Debug>:Debug>"
 
       - name: Build
         shell: bash

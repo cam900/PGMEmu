@@ -13,6 +13,8 @@ and MSVC. PGMBuilder, the owner's converter, already publishes releases from tag
 - `.github/workflows/ci.yml` builds and tests on every push and pull request:
   - macOS arm64 (Apple clang, macOS 13 or later), Linux x64 (GCC 14, Ubuntu 24.04), and Windows
     x64 (MSVC, its runtime linked in);
+  - with warnings as errors (`PGM_WERROR`), so that what one compiler warns of is fixed before it
+    is merged;
   - `scripts/format.sh --check` with clang-format 23, the version the code is formatted with.
 - The tests that need ROMs, and the regression suite's golden frames, skip there: no ROM is part
   of the repository, and none is fetched. They are run where the ROMs are, before a release.

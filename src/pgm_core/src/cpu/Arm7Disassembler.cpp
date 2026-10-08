@@ -132,7 +132,7 @@ std::string psrTransfer( std::uint32_t opcode, std::string_view cond )
     return fmt::format( "mrs{} {}, {}", cond, reg( field( opcode, 12, 4 ) ), psr );
   }
   std::string fields;
-  for ( auto const [index, name] :
+  for ( auto const& [index, name] :
         { std::pair{ 19U, 'f' }, std::pair{ 18U, 's' }, std::pair{ 17U, 'x' }, std::pair{ 16U, 'c' } } )
   {
     if ( bit( opcode, index ) )

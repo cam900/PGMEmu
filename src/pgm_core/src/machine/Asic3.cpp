@@ -127,25 +127,25 @@ std::uint16_t Asic3::nextHold( std::uint16_t data ) const
   {
   case 0:
   case 1:
-    next ^= bit( mHold, 10 ) ^ bit( mHold, 8 );
+    next ^= static_cast<std::uint32_t>( bit( mHold, 10 ) ^ bit( mHold, 8 ) );
     next ^= ( static_cast<std::uint32_t>( bit( mX, 0 ) ) << 1U ) |
             ( static_cast<std::uint32_t>( bit( mX, 1 ) ) << 6U ) |
             ( static_cast<std::uint32_t>( bit( mX, 3 ) ) << 14U );
     break;
   case 2:
-    next ^= bit( mHold, 10 ) ^ bit( mHold, 8 );
+    next ^= static_cast<std::uint32_t>( bit( mHold, 10 ) ^ bit( mHold, 8 ) );
     next ^= ( static_cast<std::uint32_t>( bit( mX, 0 ) ) << 4U ) |
             ( static_cast<std::uint32_t>( bit( mX, 1 ) ) << 6U ) |
             ( static_cast<std::uint32_t>( bit( mX, 3 ) ) << 12U );
     break;
   case 3:
-    next ^= bit( mHold, 7 ) ^ bit( mHold, 6 );
+    next ^= static_cast<std::uint32_t>( bit( mHold, 7 ) ^ bit( mHold, 6 ) );
     next ^= ( static_cast<std::uint32_t>( bit( mX, 0 ) ) << 4U ) |
             ( static_cast<std::uint32_t>( bit( mX, 1 ) ) << 6U ) |
             ( static_cast<std::uint32_t>( bit( mX, 3 ) ) << 12U );
     break;
   case 4:
-    next ^= bit( mHold, 7 ) ^ bit( mHold, 6 );
+    next ^= static_cast<std::uint32_t>( bit( mHold, 7 ) ^ bit( mHold, 6 ) );
     next ^= ( static_cast<std::uint32_t>( bit( mX, 0 ) ) << 3U ) |
             ( static_cast<std::uint32_t>( bit( mX, 1 ) ) << 8U ) |
             ( static_cast<std::uint32_t>( bit( mX, 3 ) ) << 14U );

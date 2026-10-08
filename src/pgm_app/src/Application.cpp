@@ -115,7 +115,9 @@ std::expected<std::unique_ptr<Application>, std::string> Application::create( Se
 
 Application::Application( SDL_Window* window, SDL_GPUDevice* device, Settings settings )
     : mWindow{ window }, mDevice{ device },
-      mScreen{ std::make_unique<GpuTexture>( device, video::SCREEN_WIDTH, video::SCREEN_HEIGHT ) },
+      mScreen{ std::make_unique<GpuTexture>( device,
+                                             static_cast<std::uint32_t>( video::SCREEN_WIDTH ),
+                                             static_cast<std::uint32_t>( video::SCREEN_HEIGHT ) ) },
       mFrame{ makeTestPattern() }, mAudio{ AudioOutput::open() },
       mEmulation{ std::make_unique<EmulationThread>( std::move( settings ), mAudio.get() ) },
       mVideo{ std::make_unique<VideoWindow>( device,

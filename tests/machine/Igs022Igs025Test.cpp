@@ -76,11 +76,11 @@ TEST_CASE( "IGS025's check value folds in what is written and the table read", "
   static_cast<void>( chip.read( 1 ) );
   static_cast<void>( chip.read( 1 ) );
   // Five steps, each with the bit the command picks set in its data.
-  for ( auto const [command, data] : { std::pair{ 0x20, 0x01 },
-                                       std::pair{ 0x21, 0x02 },
-                                       std::pair{ 0x22, 0x04 },
-                                       std::pair{ 0x23, 0x08 },
-                                       std::pair{ 0x27, 0x80 } } )
+  for ( auto const& [command, data] : { std::pair{ 0x20, 0x01 },
+                                        std::pair{ 0x21, 0x02 },
+                                        std::pair{ 0x22, 0x04 },
+                                        std::pair{ 0x23, 0x08 },
+                                        std::pair{ 0x27, 0x80 } } )
   {
     chip.write( 0, static_cast<std::uint16_t>( command ) );
     chip.write( 1, static_cast<std::uint16_t>( data ) );

@@ -1,7 +1,16 @@
 #include "Z80.hpp"
 
+// z80.h is upstream's, unmodified (libextern/README.md); MSVC finds code its
+// switch can never reach, which is upstream's design and no fault here.
+#ifdef _MSC_VER
+#pragma warning( push )
+#pragma warning( disable : 4702 )
+#endif
 #define CHIPS_IMPL
 #include <z80.h>
+#ifdef _MSC_VER
+#pragma warning( pop )
+#endif
 
 namespace pgm::machine
 {
