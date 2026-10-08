@@ -2,7 +2,10 @@
 
 #include "AudioOutput.hpp"
 #include "EmulationThread.hpp"
+#include "Gamepads.hpp"
 #include "GpuTexture.hpp"
+#include "InputMap.hpp"
+#include "InputWindow.hpp"
 #include "VideoWindow.hpp"
 
 #include "pgm/Emulator.hpp"
@@ -16,6 +19,7 @@
 
 #include <cstdint>
 #include <expected>
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <vector>
@@ -89,10 +93,17 @@ private:
   std::unique_ptr<server::McpServer> mMcp;
   std::unique_ptr<server::McpHttpServer> mMcpHttp;
   std::unique_ptr<VideoWindow> mVideo;
+  Gamepads mGamepads;
+  /// Where the input map is kept, beside imgui.ini; empty when there is no
+  /// such place, and the map is then not kept.
+  std::filesystem::path mInputMapPath;
+  InputMap mInputMap;
+  std::unique_ptr<InputWindow> mInputWindow;
   std::string mImguiIniPath;
   bool mQuit{};
   bool mShowStatus{ true };
   bool mShowSound{};
+  bool mShowInput{};
   bool mShowVideo{};
   bool mPaused{};
   /// Whether the screen window had focus when the interface was last drawn.

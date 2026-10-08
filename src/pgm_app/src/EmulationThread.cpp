@@ -96,9 +96,9 @@ void EmulationThread::setPaused( bool paused )
   mWake.notify_all();
 }
 
-void EmulationThread::setKeyboard( std::array<std::uint16_t, 4> const& pressed )
+void EmulationThread::setHostInputs( std::array<std::uint16_t, 4> const& pressed )
 {
-  mKeyboard = packInputs( pressed );
+  mHostInputs = packInputs( pressed );
 }
 
 bool EmulationThread::takePicture( std::int64_t& picturesSeen, std::vector<std::uint8_t>& out )
@@ -133,7 +133,7 @@ void EmulationThread::serveRequests()
 
 void EmulationThread::runFrame( machine::Machine& machine )
 {
-  machine.setHostInputs( unpackInputs( mKeyboard ) );
+  machine.setHostInputs( unpackInputs( mHostInputs ) );
   machine.runFrames( 1 );
   if ( mAudio != nullptr )
   {

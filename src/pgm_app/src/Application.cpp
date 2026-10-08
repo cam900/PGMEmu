@@ -1,6 +1,5 @@
 #include "Application.hpp"
 
-#include "Keyboard.hpp"
 #include "TestPattern.hpp"
 
 #include "pgm/video/Screen.hpp"
@@ -125,6 +124,7 @@ Application::Application( SDL_Window* window, SDL_GPUDevice* device, Settings se
   if ( char* const prefPath = SDL_GetPrefPath( "PGMEmu", "pgmemu" ); prefPath != nullptr )
   {
     mImguiIniPath = std::string{ prefPath } + "imgui.ini";
+    mInputMapPath = std::filesystem::path{ prefPath } / "input.json";
     SDL_free( prefPath );
     io.IniFilename = mImguiIniPath.c_str();
   }
@@ -132,6 +132,17 @@ Application::Application( SDL_Window* window, SDL_GPUDevice* device, Settings se
   {
     io.IniFilename = nullptr;
   }
+
+  mInputMap = mInputMapPath.empty() ? InputMap::defaults() : InputMap::load( mInputMapPath );
+  mInputWindow = std::make_unique<InputWindow>( mInputMap,
+                                                mGamepads,
+                                                [this]
+                                                {
+                                                  if ( !mInputMapPath.empty() )
+                                                  {
+                                                    mInputMap.save( mInputMapPath );
+                                                  }
+                                                } );
 
   float const scale = SDL_GetDisplayContentScale( SDL_GetPrimaryDisplay() );
   ImGui::StyleColorsDark();
@@ -175,6 +186,8 @@ void Application::run()
     while ( SDL_PollEvent( &event ) )
     {
       ImGui_ImplSDL3_ProcessEvent( &event );
+      mGamepads.handle( event );
+      static_cast<void>( mInputWindow->capture( event ) );
       if ( event.type == SDL_EVENT_QUIT ||
            ( event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID( mWindow ) ) )
       {
@@ -235,10 +248,13 @@ void Application::updateEmulation()
   // interface does. ImGui's keyboard navigation asks for the keyboard whenever
   // any of its windows has focus, the screen's included, so its request alone
   // cannot decide. A text field being edited keeps it.
+  // Gamepads are the game's whatever has focus. While the input window waits
+  // for a binding, neither is.
   ImGuiIO const& io = ImGui::GetIO();
-  bool const toGame = !io.WantTextInput && ( mScreenFocused || !io.WantCaptureKeyboard );
-  mEmulation->setKeyboard( toGame ? inputsFromKeyboard( SDL_GetKeyboardState( nullptr ) )
-                                  : std::array<std::uint16_t, 4>{} );
+  bool const capturing = mInputWindow->capturing();
+  bool const toGame = !capturing && !io.WantTextInput && ( mScreenFocused || !io.WantCaptureKeyboard );
+  mEmulation->setHostInputs( mInputMap.pressed( toGame ? SDL_GetKeyboardState( nullptr ) : nullptr,
+                                                capturing ? std::vector<SDL_Gamepad*>{} : mGamepads.handles() ) );
   if ( mEmulation->takePicture( mPicturesShown, mFrame ) )
   {
     mFrameChanged = true;
@@ -257,6 +273,7 @@ void Application::drawInterface()
   drawStatusWindow();
   drawSoundWindow();
   mVideo->draw( mShowVideo );
+  mInputWindow->draw( mShowInput );
 
   if ( mShowImguiDemo )
   {
@@ -300,6 +317,7 @@ void Application::drawMenuBar()
     ImGui::MenuItem( STATUS_WINDOW, nullptr, &mShowStatus );
     ImGui::MenuItem( SOUND_WINDOW, nullptr, &mShowSound );
     ImGui::MenuItem( VIDEO_WINDOW, nullptr, &mShowVideo );
+    ImGui::MenuItem( "Input", nullptr, &mShowInput );
     ImGui::Separator();
     ImGui::MenuItem( "ImGui demo", nullptr, &mShowImguiDemo );
     ImGui::EndMenu();

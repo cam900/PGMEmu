@@ -25,7 +25,7 @@ Games are `.pgm` images. `scripts/make-pgm.sh` builds them into `roms/` from the
 `../ROMS`, using PGMBuilder from `../PGMBuilder`.
 
 ```sh
-build/release/src/pgm_app/pgmemu --bios ../ROMS/pgm.zip --rom-dir roms orlegend   # play: arrows, Z X C V, 1 start, 5 coin
+build/release/src/pgm_app/pgmemu --bios ../ROMS/pgm.zip --rom-dir roms orlegend   # play: arrows, Z X C V, 1 start, 5 coin; View > Input to change
 build/release/src/pgm_cli/pgmemu-cli --info roms/orlegend.pgm     # describe an image
 build/release/src/pgm_cli/pgmemu-cli --server --bios ../ROMS/pgm.zip --rom-dir roms
 ```

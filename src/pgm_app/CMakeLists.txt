@@ -2,9 +2,11 @@ add_executable( pgm_app
   src/Application.cpp
   src/AudioOutput.cpp
   src/EmulationThread.cpp
-  src/Keyboard.cpp
-  src/Main.cpp
+  src/Gamepads.cpp
   src/GpuTexture.cpp
+  src/InputMap.cpp
+  src/InputWindow.cpp
+  src/Main.cpp
   src/TestPattern.cpp
   src/VideoWindow.cpp )
 

@@ -46,9 +46,9 @@ public:
   /// Stops running frames, or starts again; requests are answered either way.
   void setPaused( bool paused );
 
-  /// The buttons the keyboard holds, PGM.sv's IN0..IN3, applied before each
-  /// frame.
-  void setKeyboard( std::array<std::uint16_t, 4> const& pressed );
+  /// The buttons the keyboard and the gamepads hold, PGM.sv's IN0..IN3,
+  /// applied before each frame.
+  void setHostInputs( std::array<std::uint16_t, 4> const& pressed );
 
   /// Copies the last complete picture into `out` if it is newer than
   /// `picturesSeen`, and updates that; false if there is none newer.
@@ -78,7 +78,7 @@ private:
   bool mStop{};
 
   std::atomic<bool> mPaused{};
-  std::atomic<std::uint64_t> mKeyboard{};
+  std::atomic<std::uint64_t> mHostInputs{};
 
   std::mutex mPictureMutex;
   std::vector<std::uint8_t> mPicture;
