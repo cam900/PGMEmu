@@ -68,6 +68,7 @@ DisplaySettings loadDisplaySettings( std::filesystem::path const& path )
     }
   }
   settings.integerScale = json.value( "integer_scale", settings.integerScale );
+  settings.rotateVertical = json.value( "rotate_vertical", settings.rotateVertical );
   settings.scanlines = fraction( json, "scanlines", settings.scanlines );
   settings.curvature = fraction( json, "curvature", settings.curvature );
   settings.mask = fraction( json, "mask", settings.mask );
@@ -78,6 +79,7 @@ void saveDisplaySettings( DisplaySettings const& settings, std::filesystem::path
 {
   control::Json const json{ { "preset", nameOf( settings.preset ) },
                             { "integer_scale", settings.integerScale },
+                            { "rotate_vertical", settings.rotateVertical },
                             { "scanlines", settings.scanlines },
                             { "curvature", settings.curvature },
                             { "mask", settings.mask } };

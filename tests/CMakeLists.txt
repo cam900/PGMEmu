@@ -2,6 +2,7 @@ add_executable( pgm_tests
   RomSetTest.cpp
   VersionTest.cpp
   cart/BiosTest.cpp
+  cart/OrientationTest.cpp
   cart/PgmImageTest.cpp
   control/AudioAndInputTest.cpp
   control/BatchTest.cpp

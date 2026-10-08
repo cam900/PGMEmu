@@ -1,5 +1,6 @@
 #include "pgm/control/Describe.hpp"
 
+#include "pgm/cart/Orientation.hpp"
 #include "pgm/io/RomSources.hpp"
 
 #include <spdlog/fmt/fmt.h>
@@ -47,6 +48,7 @@ Json describe( cart::PgmImage const& image )
                { "year", image.year() },
                { "format_version", fmt::format( "{:04x}", image.version() ) },
                { "hardware", cart::nameOf( image.hardware() ) },
+               { "orientation", cart::nameOf( cart::orientationOf( image.shortName() ) ) },
                { "roms", std::move( roms ) },
                { "region_info", std::move( regionInfo ) } };
 }

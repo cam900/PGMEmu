@@ -230,7 +230,7 @@ void Application::run()
 
     loadChosen();
     updateEmulation();
-    updateTitle();
+    followGame();
 
     ImGui_ImplSDLGPU3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
@@ -285,7 +285,7 @@ void Application::loadGame( std::string const& nameOrPath )
   {
     mLastError += "; choose pgm.zip with File > Choose BIOS";
   }
-  mTitleCheckIn = 0;
+  mGameCheckIn = 0;
 }
 
 void Application::setBios( std::filesystem::path const& path, bool keep )
@@ -387,14 +387,14 @@ void Application::loadChosen()
   }
 }
 
-void Application::updateTitle()
+void Application::followGame()
 {
   // Asked twice a second, and at once after a load.
-  if ( mTitleCheckIn-- > 0 )
+  if ( mGameCheckIn-- > 0 )
   {
     return;
   }
-  mTitleCheckIn = 30;
+  mGameCheckIn = 30;
   auto const status = request( "emu.status" );
   if ( status.at( "ok" ) != true )
   {
@@ -402,12 +402,13 @@ void Application::updateTitle()
   }
   control::Json const& name = status.at( "result" ).at( "game_name" );
   std::optional<std::string> const game = name.is_string() ? std::optional{ name.get<std::string>() } : std::nullopt;
-  if ( game == mTitledGame )
+  if ( game == mFollowedGame )
   {
     return;
   }
-  mTitledGame = game;
+  mFollowedGame = game;
   std::string title = "PGMEmu";
+  mVertical = false;
   if ( game == Emulator::BIOS_ONLY )
   {
     title += " - PGM BIOS";
@@ -415,7 +416,9 @@ void Application::updateTitle()
   else if ( game )
   {
     auto const info = request( "emu.cartridge_info" );
-    title += " - " + ( info.at( "ok" ) == true ? info.at( "result" ).at( "long_name" ).get<std::string>() : *game );
+    bool const known = info.at( "ok" ) == true;
+    title += " - " + ( known ? info.at( "result" ).at( "long_name" ).get<std::string>() : *game );
+    mVertical = known && info.at( "result" ).at( "orientation" ) == "vertical";
   }
   SDL_SetWindowTitle( mWindow, title.c_str() );
 }
@@ -554,6 +557,7 @@ void Application::drawDisplayMenu()
   }
   ImGui::Separator();
   changed |= ImGui::MenuItem( "Whole multiples only", nullptr, &mDisplay.integerScale );
+  changed |= ImGui::MenuItem( "Vertical games upright", nullptr, &mDisplay.rotateVertical );
   // A slider changes the picture as it is dragged, and is kept when let go.
   // Its ID is its own: the Scanlines preset's menu item has the same label.
   auto const slider = [&changed]( char const* label, float& value )
@@ -590,35 +594,61 @@ void Application::drawScreenWindow()
   {
     // Sized in the display's pixels, which the shader draws, centred. The
     // picture is 448 by 224 shaped 4:3, as the board's monitor showed it;
-    // scaled by whole multiples of its height, or as large as fits.
+    // scaled by whole multiples of its height, or as large as fits. A vertical
+    // game's is shown upright, 3:4: drawn as any other, then turned.
+    bool const upright = mVertical && mDisplay.rotateVertical;
     float const pixelsPerPoint = ImGui::GetIO().DisplayFramebufferScale.y;
     ImVec2 const available = ImGui::GetContentRegionAvail();
     float const baseWidth = SCREEN_HEIGHT * 4.0F / 3.0F;
-    float scale = std::min( available.x * pixelsPerPoint / baseWidth, available.y * pixelsPerPoint / SCREEN_HEIGHT );
+    float const shownWidth = upright ? SCREEN_HEIGHT : baseWidth;
+    float const shownHeight = upright ? baseWidth : SCREEN_HEIGHT;
+    float scale = std::min( available.x * pixelsPerPoint / shownWidth, available.y * pixelsPerPoint / shownHeight );
     if ( mDisplay.integerScale )
     {
       scale = std::max( 1.0F, std::floor( scale ) );
     }
     auto const width = static_cast<std::uint32_t>( std::lround( baseWidth * scale ) );
     auto const height = static_cast<std::uint32_t>( std::lround( SCREEN_HEIGHT * scale ) );
-    ImVec2 const size{ static_cast<float>( width ) / pixelsPerPoint, static_cast<float>( height ) / pixelsPerPoint };
+    ImVec2 size{ static_cast<float>( width ) / pixelsPerPoint, static_cast<float>( height ) / pixelsPerPoint };
+    if ( upright )
+    {
+      size = ImVec2{ size.y, size.x };
+    }
     // Centred, on a whole pixel of the display: the shader's output is shown a
     // pixel for a pixel, and half a pixel off would sample some of its rows
     // twice and others not at all.
     ImVec2 const cursor = ImGui::GetCursorScreenPos();
     auto const onPixel = [pixelsPerPoint]( float points )
     { return std::round( points * pixelsPerPoint ) / pixelsPerPoint; };
-    ImGui::SetCursorScreenPos( ImVec2{ onPixel( cursor.x + std::max( 0.0F, ( available.x - size.x ) / 2.0F ) ),
-                                       onPixel( cursor.y + std::max( 0.0F, ( available.y - size.y ) / 2.0F ) ) } );
+    ImVec2 const corner{ onPixel( cursor.x + std::max( 0.0F, ( available.x - size.x ) / 2.0F ) ),
+                         onPixel( cursor.y + std::max( 0.0F, ( available.y - size.y ) / 2.0F ) ) };
+    ImGui::SetCursorScreenPos( corner );
 
     // The shader's output is shown a pixel for a pixel: sampled nearest, the
-    // sampler restored for the rest of the interface.
+    // sampler restored for the rest of the interface. Turned upright, the
+    // picture's top right is at the top left, and its top along the left.
     if ( SDL_GPUTexture* const target = width > 0 && height > 0 ? mRenderer->target( width, height ) : nullptr )
     {
       ImDrawList* const drawList = ImGui::GetWindowDrawList();
       ImGuiPlatformIO const& platform = ImGui::GetPlatformIO();
+      std::array<ImVec2, 4> uvs{
+        ImVec2{ 0.0F, 0.0F }, ImVec2{ 1.0F, 0.0F }, ImVec2{ 1.0F, 1.0F }, ImVec2{ 0.0F, 1.0F }
+      };
+      if ( upright )
+      {
+        std::ranges::rotate( uvs, uvs.begin() + 1 );
+      }
       drawList->AddCallback( platform.DrawCallback_SetSamplerNearest, nullptr );
-      ImGui::Image( ImTextureRef{ reinterpret_cast<ImTextureID>( target ) }, size );
+      drawList->AddImageQuad( ImTextureRef{ reinterpret_cast<ImTextureID>( target ) },
+                              corner,
+                              ImVec2{ corner.x + size.x, corner.y },
+                              ImVec2{ corner.x + size.x, corner.y + size.y },
+                              ImVec2{ corner.x, corner.y + size.y },
+                              uvs[0],
+                              uvs[1],
+                              uvs[2],
+                              uvs[3] );
+      ImGui::Dummy( size );
       drawList->AddCallback( platform.DrawCallback_SetSamplerLinear, nullptr );
       mScreenShown = true;
     }

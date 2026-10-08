@@ -82,8 +82,9 @@ private:
   void updateEmulation();
   /// Loads the file the open dialog chose, if it has.
   void loadChosen();
-  /// Names the loaded cartridge in the window's title.
-  void updateTitle();
+  /// Names the loaded cartridge in the window's title, and learns which way
+  /// up its monitor stood.
+  void followGame();
 
   /// Lays out one frame of the user interface.
   void drawInterface();
@@ -147,8 +148,10 @@ private:
   bool mHaveBios{};
   /// The game the window's title names, and the frames until it is asked
   /// again what is loaded: a game may be loaded by an agent as well.
-  std::optional<std::string> mTitledGame;
-  int mTitleCheckIn{};
+  std::optional<std::string> mFollowedGame;
+  int mGameCheckIn{};
+  /// Whether the loaded game's monitor stood on its side.
+  bool mVertical{};
   bool mShowImguiDemo{};
 };
 

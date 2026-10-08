@@ -197,12 +197,17 @@ for a file.
   "year": "1997",
   "format_version": "0021",
   "hardware": "asic3",
+  "orientation": "horizontal",
   "roms": [ { "type": "PRG", "mapping": 1048576, "size": 2097152, "crc32": "d5e93543" } ],
   "region_info": { "scheme": "asic3", "default_region": 0, "regions": [ { "id": "WRLD", "value": 0 } ] }
 }
 ```
 
 - `hardware` takes the names in [pgm-format.md §2.1](pgm-format.md#21-hardware).
+- `orientation` is `vertical` for a game whose monitor stood on its side, which draws its picture
+  lying with its top at the left: the frame is seen upright turned a quarter anticlockwise. The
+  image does not say; it is known by the set's name
+  ([0016](../decisions/0016-vertical-games-by-set-name.md)).
 - `region_info` is `null` when the image has no region block.
 - `patch_type` and `patch_offset` appear for the `asic27` scheme, and `default_region` for the
   `asic3` scheme.

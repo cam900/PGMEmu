@@ -7,9 +7,9 @@
 namespace pgm::app
 {
 
-/// How the emulated screen is drawn: through which shader, and at what size.
-/// Its shape is always 4:3, the 448 by 224 picture as the board's monitor
-/// showed it.
+/// How the emulated screen is drawn: through which shader, at what size, and
+/// which way up. Its shape is always 4:3, the 448 by 224 picture as the
+/// board's monitor showed it, or 3:4 where that monitor stood on its side.
 struct DisplaySettings
 {
   enum class Preset : std::uint8_t
@@ -25,6 +25,9 @@ struct DisplaySettings
   Preset preset{ Preset::SHARP };
   /// Only whole multiples of the screen's height, or as large as fits.
   bool integerScale{ true };
+  /// A vertical game's picture turned upright, as its cabinet's monitor
+  /// showed it; or left lying, for a monitor turned by hand.
+  bool rotateVertical{ true };
   /// Each 0 to 1: how dark the scanlines are, how curved the tube, how strong
   /// the mask.
   float scanlines{ 0.6F };
