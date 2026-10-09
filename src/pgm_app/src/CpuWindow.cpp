@@ -158,27 +158,24 @@ void CpuWindow::draw( bool& open )
   {
     return;
   }
-  if ( ImGui::Begin( WINDOW, &open ) )
+  if ( ImGui::Begin( WINDOW, &open ) && ImGui::BeginTabBar( "CPUs" ) )
   {
-    if ( ImGui::BeginTabBar( "CPUs" ) )
+    if ( ImGui::BeginTabItem( "68000" ) )
     {
-      if ( ImGui::BeginTabItem( "68000" ) )
-      {
-        drawCpu( "m68k", mM68k, drawM68k );
-        ImGui::EndTabItem();
-      }
-      if ( ImGui::BeginTabItem( "Z80" ) )
-      {
-        drawCpu( "z80", mZ80, drawZ80 );
-        ImGui::EndTabItem();
-      }
-      if ( ImGui::BeginTabItem( "ARM7" ) )
-      {
-        drawCpu( "arm7", mArm7, drawArm7 );
-        ImGui::EndTabItem();
-      }
-      ImGui::EndTabBar();
+      drawCpu( "m68k", mM68k, drawM68k );
+      ImGui::EndTabItem();
     }
+    if ( ImGui::BeginTabItem( "Z80" ) )
+    {
+      drawCpu( "z80", mZ80, drawZ80 );
+      ImGui::EndTabItem();
+    }
+    if ( ImGui::BeginTabItem( "ARM7" ) )
+    {
+      drawCpu( "arm7", mArm7, drawArm7 );
+      ImGui::EndTabItem();
+    }
+    ImGui::EndTabBar();
   }
   ImGui::End();
 }
