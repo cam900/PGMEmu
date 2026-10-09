@@ -122,7 +122,7 @@ Application::Application( SDL_Window* window, SDL_GPUDevice* device, Settings se
       mFrame{ makeTestPattern() }, mAudio{ AudioOutput::open() },
       mEmulation{ std::make_unique<EmulationThread>( std::move( settings ), mAudio.get() ) },
       mCpu{ std::make_unique<CpuWindow>( [this]( std::string const& method, control::Json params )
-                                             { return request( method, std::move( params ) ); } ) },
+                                         { return request( method, std::move( params ) ); } ) },
       mVideo{ std::make_unique<VideoWindow>( device,
                                              [this]( std::string const& method, control::Json params )
                                              { return request( method, std::move( params ) ); } ) },
