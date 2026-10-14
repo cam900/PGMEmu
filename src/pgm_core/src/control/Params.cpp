@@ -2,10 +2,42 @@
 
 #include <spdlog/fmt/fmt.h>
 
+#include <charconv>
+#include <optional>
+#include <system_error>
 #include <utility>
 
 namespace pgm::control
 {
+
+namespace
+{
+
+/// The value of hex digits after `0x` or `$`, as a person writes an address.
+std::optional<std::uint64_t> parseHex( std::string_view text )
+{
+  if ( text.starts_with( "0x" ) || text.starts_with( "0X" ) )
+  {
+    text.remove_prefix( 2 );
+  }
+  else if ( text.starts_with( '$' ) )
+  {
+    text.remove_prefix( 1 );
+  }
+  else
+  {
+    return std::nullopt;
+  }
+  std::uint64_t value = 0;
+  auto const [end, error] = std::from_chars( text.data(), text.data() + text.size(), value, 16 );
+  if ( text.empty() || error != std::errc{} || end != text.data() + text.size() )
+  {
+    return std::nullopt;
+  }
+  return value;
+}
+
+} // namespace
 
 Error badRequest( std::string message )
 {
@@ -27,12 +59,19 @@ std::expected<std::uint64_t, Error> requireUnsigned( Json const& params, std::st
   // Parsed text holds a non-negative integer as unsigned, a request built in
   // C++ from an `int` holds it as signed; the value is what is checked.
   auto const field = params.find( name );
-  if ( field == params.end() || !field->is_number_integer() ||
-       ( !field->is_number_unsigned() && field->get<std::int64_t>() < 0 ) )
+  if ( field != params.end() && field->is_string() )
   {
-    return std::unexpected( badRequest( fmt::format( "Missing or invalid field: {}", name ) ) );
+    if ( auto const value = parseHex( field->get_ref<std::string const&>() ) )
+    {
+      return *value;
+    }
   }
-  return field->get<std::uint64_t>();
+  else if ( field != params.end() && field->is_number_integer() &&
+            ( field->is_number_unsigned() || field->get<std::int64_t>() >= 0 ) )
+  {
+    return field->get<std::uint64_t>();
+  }
+  return std::unexpected( badRequest( fmt::format( "Missing or invalid field: {}", name ) ) );
 }
 
 Json paramsSchema( std::initializer_list<Param> params )

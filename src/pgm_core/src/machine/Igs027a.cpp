@@ -156,6 +156,10 @@ void Igs027a::advanceTo( Time now )
   std::int64_t const target = armCycles( now );
   while ( mArm.cycles() < target )
   {
+    if ( !mBreakpoints.empty() && !mBreakpointHit && mBreakpoints.contains( mArm.pc() ) )
+    {
+      mBreakpointHit = registers();
+    }
     mArm.step();
   }
 }
@@ -169,6 +173,66 @@ std::int64_t Igs027a::armCycles( Time time ) const
 Igs027a const* Igs027a::igs027a() const
 {
   return this;
+}
+
+Igs027a* Igs027a::igs027a()
+{
+  return this;
+}
+
+Arm7Registers Igs027a::registers() const
+{
+  cpu::Arm7State const& state = mArm.state();
+  Arm7Registers registers;
+  for ( unsigned i = 0; i < 16; ++i )
+  {
+    registers.r.at( i ) = mArm.reg( i );
+  }
+  registers.cpsr = state.cpsr;
+  switch ( state.cpsr & cpu::Arm7::MODE_MASK )
+  {
+  case cpu::Arm7::MODE_FIQ:
+    registers.spsr = state.spsr[0];
+    break;
+  case cpu::Arm7::MODE_SUPERVISOR:
+    registers.spsr = state.spsr[1];
+    break;
+  case cpu::Arm7::MODE_ABORT:
+    registers.spsr = state.spsr[2];
+    break;
+  case cpu::Arm7::MODE_IRQ:
+    registers.spsr = state.spsr[3];
+    break;
+  case cpu::Arm7::MODE_UNDEFINED:
+    registers.spsr = state.spsr[4];
+    break;
+  default:
+    break;
+  }
+  registers.pc = mArm.pc();
+  registers.fiq = state.fiqLine;
+  registers.cycles = state.cycles;
+  return registers;
+}
+
+std::set<std::uint32_t>& Igs027a::breakpoints()
+{
+  return mBreakpoints;
+}
+
+std::set<std::uint32_t> const& Igs027a::breakpoints() const
+{
+  return mBreakpoints;
+}
+
+std::optional<Arm7Registers> const& Igs027a::breakpointHit() const
+{
+  return mBreakpointHit;
+}
+
+void Igs027a::clearBreakpointHit()
+{
+  mBreakpointHit.reset();
 }
 
 cpu::Arm7 const& Igs027a::arm() const

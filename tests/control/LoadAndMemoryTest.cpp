@@ -218,3 +218,71 @@ TEST_CASE( "memory.read refuses what it cannot read", "[control]" )
   REQUIRE( errorCode( read( "BIOS_TILE_ROM", 0, 0x100001 ) ) == "bad_request" );
   REQUIRE( read( "CART_PROG_ROM", 4, 0 ).at( "result" ).at( "data_hex" ).get<std::string>().empty() );
 }
+
+TEST_CASE( "memory.write writes RAM as memory.read reads it, addresses in hex too", "[control]" )
+{
+  Fixture const fixture;
+  pgm::Emulator emulator{ fixture.settings() };
+  Dispatcher const dispatcher{ emulator };
+  REQUIRE( call( dispatcher, "emu.load_game", { { "name", "testcart" } } ).at( "ok" ) == true );
+
+  auto const written = call(
+      dispatcher, "memory.write", { { "region", "WORK_RAM" }, { "address", "0x100" }, { "data_hex", "DEADbeef" } } );
+  REQUIRE( written.at( "result" ) == Json{ { "region", "WORK_RAM" }, { "address", 0x100 }, { "size", 4 } } );
+  auto const read =
+      call( dispatcher, "memory.read", { { "region", "WORK_RAM" }, { "address", "$100" }, { "size", 4 } } );
+  REQUIRE( read.at( "result" ).at( "data_hex" ) == "deadbeef" );
+
+  REQUIRE( errorCode( call( dispatcher,
+                            "memory.write",
+                            { { "region", "CART_PROG_ROM" }, { "address", 0 }, { "data_hex", "00" } } ) ) ==
+           "invalid_region" );
+  REQUIRE( errorCode( call( dispatcher,
+                            "memory.write",
+                            { { "region", "WORK_RAM" }, { "address", 0x1ffff }, { "data_hex", "0000" } } ) ) ==
+           "invalid_range" );
+  REQUIRE( errorCode( call(
+               dispatcher, "memory.write", { { "region", "WORK_RAM" }, { "address", 0 }, { "data_hex", "0x00" } } ) ) ==
+           "bad_request" );
+  REQUIRE( errorCode(
+               call( dispatcher, "memory.read", { { "region", "WORK_RAM" }, { "address", "0x" }, { "size", 1 } } ) ) ==
+           "bad_request" );
+}
+
+TEST_CASE( "emu.pause and emu.resume set what emu.status says of the window's own run", "[control]" )
+{
+  Fixture const fixture;
+  pgm::Emulator emulator{ fixture.settings() };
+  Dispatcher const dispatcher{ emulator };
+
+  REQUIRE( call( dispatcher, "emu.status" ).at( "result" ).at( "paused" ) == false );
+  REQUIRE( call( dispatcher, "emu.pause" ).at( "ok" ) == true );
+  REQUIRE( emulator.paused() );
+  REQUIRE( call( dispatcher, "emu.status" ).at( "result" ).at( "paused" ) == true );
+  REQUIRE( call( dispatcher, "emu.resume" ).at( "ok" ) == true );
+  REQUIRE_FALSE( emulator.paused() );
+}
+
+TEST_CASE( "breakpoints are set on a CPU the board has, and a run's answer says which stopped it", "[control]" )
+{
+  Fixture const fixture;
+  pgm::Emulator emulator{ fixture.settings() };
+  Dispatcher const dispatcher{ emulator };
+  REQUIRE( call( dispatcher, "emu.load_game", { { "name", "testcart" } } ).at( "ok" ) == true );
+
+  REQUIRE( errorCode( call( dispatcher, "debug.breakpoint.add", { { "address", 0 }, { "cpu", "arm7" } } ) ) ==
+           "no_cpu" );
+  REQUIRE( errorCode( call( dispatcher, "debug.breakpoint.add", { { "address", 0 }, { "cpu", "gpu" } } ) ) ==
+           "bad_request" );
+  REQUIRE( call( dispatcher, "debug.breakpoint.add", { { "address", "0x80" }, { "cpu", "z80" } } ).at( "ok" ) == true );
+  REQUIRE( call( dispatcher, "debug.breakpoint.list", { { "cpu", "z80" } } ).at( "result" ) ==
+           Json::array( { 0x80 } ) );
+  REQUIRE( call( dispatcher, "debug.breakpoint.list" ).at( "result" ) == Json::array() );
+
+  auto const run = call( dispatcher, "emu.run_frames", { { "count", 2 } } ).at( "result" );
+  REQUIRE( run.at( "reason" ) == "breakpoint" );
+  REQUIRE( run.at( "breakpoint" ).at( "cpu" ) == "z80" );
+  REQUIRE( run.at( "breakpoint" ).at( "address" ) == 0x80 );
+  REQUIRE( run.at( "breakpoint" ).at( "registers" ).at( "pc" ) == 0x80 );
+  REQUIRE( call( dispatcher, "emu.status" ).at( "result" ).at( "breakpoint" ) == run.at( "breakpoint" ) );
+}

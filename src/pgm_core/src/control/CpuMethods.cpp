@@ -54,28 +54,24 @@ Json stateOf( machine::Machine const& machine )
                { "halted", state.halted } };
 }
 
+} // namespace
+
+Json z80Json( machine::Z80Registers const& r )
+{
+  return Json{ { "pc", r.pc },   { "sp", r.sp },     { "af", r.af },    { "bc", r.bc },   { "de", r.de },
+               { "hl", r.hl },   { "ix", r.ix },     { "iy", r.iy },    { "af_", r.af2 }, { "bc_", r.bc2 },
+               { "de_", r.de2 }, { "hl_", r.hl2 },   { "wz", r.wz },    { "i", r.i },     { "r", r.r },
+               { "im", r.im },   { "iff1", r.iff1 }, { "iff2", r.iff2 } };
+}
+
+namespace
+{
+
 Json z80StateOf( machine::Machine const& machine )
 {
-  machine::Z80Registers const r = machine.z80Registers();
-  return Json{ { "pc", r.pc },
-               { "sp", r.sp },
-               { "af", r.af },
-               { "bc", r.bc },
-               { "de", r.de },
-               { "hl", r.hl },
-               { "ix", r.ix },
-               { "iy", r.iy },
-               { "af_", r.af2 },
-               { "bc_", r.bc2 },
-               { "de_", r.de2 },
-               { "hl_", r.hl2 },
-               { "wz", r.wz },
-               { "i", r.i },
-               { "r", r.r },
-               { "im", r.im },
-               { "iff1", r.iff1 },
-               { "iff2", r.iff2 },
-               { "halted", machine.z80Halted() } };
+  Json state = z80Json( machine.z80Registers() );
+  state["halted"] = machine.z80Halted();
+  return state;
 }
 
 std::string_view modeName( std::uint32_t cpsr )
@@ -106,6 +102,23 @@ Error noArm7()
   return Error{ .code = "no_cpu", .message = "The loaded board has no ARM7: it has no IGS027A" };
 }
 
+} // namespace
+
+Json arm7Json( machine::Arm7Registers const& registers )
+{
+  return Json{ { "pc", registers.pc },
+               { "r", registers.r },
+               { "cpsr", registers.cpsr },
+               { "spsr", registers.spsr },
+               { "mode", modeName( registers.cpsr ) },
+               { "thumb", ( registers.cpsr & 0x20U ) != 0 },
+               { "fiq", registers.fiq },
+               { "cycles", registers.cycles } };
+}
+
+namespace
+{
+
 std::expected<Json, Error> arm7StateOf( machine::Machine const& machine )
 {
   auto const registers = machine.arm7Registers();
@@ -115,15 +128,9 @@ std::expected<Json, Error> arm7StateOf( machine::Machine const& machine )
   }
   bool const thumb = ( registers->cpsr & 0x20U ) != 0;
   int length = 0;
-  return Json{ { "pc", registers->pc },
-               { "r", registers->r },
-               { "cpsr", registers->cpsr },
-               { "spsr", registers->spsr },
-               { "mode", modeName( registers->cpsr ) },
-               { "thumb", thumb },
-               { "fiq", registers->fiq },
-               { "cycles", registers->cycles },
-               { "disasm", machine.disassembleArm7( registers->pc, thumb, length ).value_or( "" ) } };
+  Json state = arm7Json( *registers );
+  state["disasm"] = machine.disassembleArm7( registers->pc, thumb, length ).value_or( "" );
+  return state;
 }
 
 /// Which CPU `params` name: m68k when they name none.
@@ -140,6 +147,34 @@ std::expected<std::string, Error> cpuOf( Json const& params )
   }
   return cpu;
 }
+
+/// The processor `params` name for a breakpoint, or the error that says it is
+/// not one, or not on this board.
+std::expected<machine::Cpu, Error> breakpointCpu( Json const& params, machine::Machine const& machine )
+{
+  auto const name = cpuOf( params );
+  if ( !name )
+  {
+    return std::unexpected( name.error() );
+  }
+  if ( *name == "z80" )
+  {
+    return machine::Cpu::Z80;
+  }
+  if ( *name == "arm7" )
+  {
+    if ( !machine.arm7Registers() )
+    {
+      return std::unexpected( noArm7() );
+    }
+    return machine::Cpu::ARM7;
+  }
+  return machine::Cpu::M68K;
+}
+
+constexpr std::string_view BREAKPOINT_CPU = "m68k (the default), z80 or arm7 (the IGS027A's). A Z80 or ARM7 "
+                                            "breakpoint stops the run after the 68000 instruction during which that "
+                                            "processor reached it; the processor itself has run on.";
 
 } // namespace
 
@@ -235,32 +270,48 @@ void addCpuMethods( Dispatcher& dispatcher, Emulator& emulator )
       } );
 
   dispatcher.add( "debug.breakpoint.add",
-                  info( "Stops runs before the 68000 executes the instruction at an address.",
-                        { { .name = "address", .type = "integer", .description = "The instruction's address." } } ),
+                  info( "Stops runs where a processor executes the instruction at an address: the 68000 before it "
+                        "executes it.",
+                        { { .name = "address", .type = "integer", .description = "The instruction's address." },
+                          { .name = "cpu", .type = "string", .description = BREAKPOINT_CPU, .required = false } } ),
                   [&emulator]( Json const& params ) -> Outcome
                   {
                     auto const machine = loadedMachine( emulator );
-                    auto const address = requireUnsigned( params, "address" );
-                    if ( !machine || !address )
+                    if ( !machine )
                     {
-                      return std::unexpected( !machine ? machine.error() : address.error() );
+                      return std::unexpected( machine.error() );
                     }
-                    ( *machine )->addBreakpoint( static_cast<std::uint32_t>( *address ) );
+                    auto const address = requireUnsigned( params, "address" );
+                    auto const cpu = breakpointCpu( params, **machine );
+                    if ( !address || !cpu )
+                    {
+                      return std::unexpected( !address ? address.error() : cpu.error() );
+                    }
+                    ( *machine )->addBreakpoint( static_cast<std::uint32_t>( *address ), *cpu );
                     return Json::object();
                   } );
 
   dispatcher.add( "debug.breakpoint.remove",
                   info( "Removes a breakpoint.",
-                        { { .name = "address", .type = "integer", .description = "The breakpoint's address." } } ),
+                        { { .name = "address", .type = "integer", .description = "The breakpoint's address." },
+                          { .name = "cpu",
+                            .type = "string",
+                            .description = "m68k (the default), z80 or arm7.",
+                            .required = false } } ),
                   [&emulator]( Json const& params ) -> Outcome
                   {
                     auto const machine = loadedMachine( emulator );
-                    auto const address = requireUnsigned( params, "address" );
-                    if ( !machine || !address )
+                    if ( !machine )
                     {
-                      return std::unexpected( !machine ? machine.error() : address.error() );
+                      return std::unexpected( machine.error() );
                     }
-                    ( *machine )->removeBreakpoint( static_cast<std::uint32_t>( *address ) );
+                    auto const address = requireUnsigned( params, "address" );
+                    auto const cpu = breakpointCpu( params, **machine );
+                    if ( !address || !cpu )
+                    {
+                      return std::unexpected( !address ? address.error() : cpu.error() );
+                    }
+                    ( *machine )->removeBreakpoint( static_cast<std::uint32_t>( *address ), *cpu );
                     return Json::object();
                   } );
 
@@ -387,16 +438,25 @@ void addCpuMethods( Dispatcher& dispatcher, Emulator& emulator )
                   } );
 
   dispatcher.add( "debug.breakpoint.list",
-                  info( "The breakpoints' addresses." ),
-                  [&emulator]( Json const& /*params*/ ) -> Outcome
+                  info( "The addresses of a processor's breakpoints, ascending.",
+                        { { .name = "cpu",
+                            .type = "string",
+                            .description = "m68k (the default), z80 or arm7.",
+                            .required = false } } ),
+                  [&emulator]( Json const& params ) -> Outcome
                   {
                     auto const machine = loadedMachine( emulator );
                     if ( !machine )
                     {
                       return std::unexpected( machine.error() );
                     }
+                    auto const cpu = breakpointCpu( params, **machine );
+                    if ( !cpu )
+                    {
+                      return std::unexpected( cpu.error() );
+                    }
                     Json addresses = Json::array();
-                    for ( std::uint32_t const address : ( *machine )->breakpoints() )
+                    for ( std::uint32_t const address : ( *machine )->breakpoints( *cpu ) )
                     {
                       addresses.push_back( address );
                     }

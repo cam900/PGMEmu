@@ -71,6 +71,9 @@ public:
   /// Whether the last tick was the first of an opcode fetch: the previous
   /// instruction is complete, and the Z80 is between instructions.
   [[nodiscard]] bool instructionBoundary() const;
+  /// The address on the bus: at an instruction boundary, that of the
+  /// instruction being fetched.
+  [[nodiscard]] std::uint16_t address() const;
   [[nodiscard]] bool halted() const;
 
   /// The registers. Those of an instruction still in flight may not have been

@@ -164,6 +164,11 @@ bool Z80::instructionBoundary() const
   return z80_opdone( &mState->cpu );
 }
 
+std::uint16_t Z80::address() const
+{
+  return Z80_GET_ADDR( mState->pins );
+}
+
 bool Z80::halted() const
 {
   return ( mState->pins & Z80_HALT ) != 0;

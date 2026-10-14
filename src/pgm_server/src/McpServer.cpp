@@ -28,10 +28,14 @@ constexpr int METHOD_NOT_FOUND = -32601;
 constexpr int INVALID_PARAMS = -32602;
 
 constexpr std::string_view INSTRUCTIONS =
-    "PGMEmu emulates the IGS PolyGame Master arcade board. Load a game with emu_load_game (pgm is the BIOS "
-    "alone), run it with emu_run_frames (60 frames is about a second) or emu_run_until, and look at it with "
-    "video_screenshot, memory_read and cpu_get_state. Runs stop early at breakpoints. Time is counted in "
-    "master ticks of 50 MHz. The tools are the methods of docs/spec/control-protocol.md.";
+    "PGMEmu emulates the IGS PolyGame Master arcade board. Load a game with emu_load_game (a set name such as "
+    "orlegend; pgm is the BIOS alone), run it with emu_run_frames (60 frames is about a second) or emu_run_until, "
+    "and look at it with video_screenshot, video_sprites, memory_read and cpu_get_state (cpu m68k, z80 or arm7). "
+    "Runs stop early at breakpoints (debug_breakpoint_add, on any of the three CPUs) and watchpoints "
+    "(debug_watchpoint_add); debug_trace shows the last 68000 instructions. input_press presses a button for a "
+    "moment, input_set holds it; memory_write changes RAM; state_save and state_load keep and restore a moment. "
+    "Integers may be written as hex strings, \"0x1000\". Time is counted in master ticks of 50 MHz. The tools are "
+    "the methods of docs/spec/control-protocol.md.";
 
 std::string toolName( std::string const& method )
 {

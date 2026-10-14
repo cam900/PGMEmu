@@ -279,3 +279,29 @@ TEST_CASE( "running ahead and coming back changes nothing, on every board", "[ro
     REQUIRE( std::get<4>( straight ) == std::get<4>( ahead2 ) );
   }
 }
+
+TEST_CASE( "an ARM7 breakpoint ends the run, with the ARM's registers as they were there", "[roms]" )
+{
+  auto const zipPath = romsDirectory() / "pgm.zip";
+  if ( !std::filesystem::exists( zipPath ) || !std::filesystem::exists( pgmDirectory() / "kov2.pgm" ) )
+  {
+    SKIP( "needs " << zipPath << " and " << pgmDirectory() / "kov2.pgm" );
+  }
+  pgm::Emulator emulator{ pgm::Settings{
+      .biosSources = { zipPath }, .romDirectory = pgmDirectory(), .stateDirectory = {} } };
+  REQUIRE( emulator.loadGameByName( "kov2" ) );
+  pgm::machine::Machine& machine = *emulator.machine();
+  machine.runFrames( 300 );
+  // Where the ARM is now is an instruction it runs, in the loop it waits in.
+  std::uint32_t const address = valueOf( machine.arm7Registers() ).pc;
+
+  REQUIRE( machine.addBreakpoint( address, pgm::machine::Cpu::ARM7 ) );
+  auto const run = machine.runFrames( 60 );
+
+  REQUIRE( run.reason == pgm::machine::StopReason::BREAKPOINT );
+  auto const hit = valueOf( machine.breakpointHit() );
+  REQUIRE( hit.cpu == pgm::machine::Cpu::ARM7 );
+  REQUIRE( hit.address == address );
+  REQUIRE( valueOf( hit.arm7 ).pc == address );
+  REQUIRE( run.frames < 60 );
+}

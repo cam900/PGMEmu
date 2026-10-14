@@ -88,15 +88,9 @@ control::Json EmulationThread::handle( control::Json const& request )
   return answer.get();
 }
 
-void EmulationThread::setPaused( bool paused )
+bool EmulationThread::paused() const
 {
-  mPaused = paused;
-  if ( paused && mAudio != nullptr )
-  {
-    // So that sound resumes at once, not after what was queued.
-    mAudio->clear();
-  }
-  mWake.notify_all();
+  return mPaused;
 }
 
 void EmulationThread::setHostInputs( std::array<std::uint16_t, 4> const& pressed )
@@ -158,7 +152,13 @@ void EmulationThread::serveRequests()
 void EmulationThread::runFrame( machine::Machine& machine )
 {
   machine.setHostInputs( unpackInputs( mHostInputs ) );
-  machine.runFrames( 1 );
+  machine::RunResult const run = machine.runFrames( 1 );
+  if ( run.reason == machine::StopReason::BREAKPOINT || run.reason == machine::StopReason::WATCHPOINT )
+  {
+    // The window stops where the debugger asked, as a client's run would;
+    // emu.resume or the menu runs it on.
+    mEmulator.setPaused( true );
+  }
   if ( mAudio != nullptr )
   {
     mAudio->push( machine.audio(), machine.audioRate() );
@@ -167,7 +167,7 @@ void EmulationThread::runFrame( machine::Machine& machine )
   // Frames run only to be shown would stop at a breakpoint or a watchpoint,
   // or reach an audio capture, that the frame kept never did.
   int const ahead = mRunAhead;
-  if ( ahead <= 0 || !machine.breakpoints().empty() || !machine.watchpoints().empty() || machine.audioListened() )
+  if ( ahead <= 0 || machine.hasDebugPoints() || machine.audioListened() )
   {
     if ( machine.picturesDrawn() != mMachinePictures )
     {
@@ -252,6 +252,13 @@ void EmulationThread::loop()
         break;
       }
     }
+    bool const paused = mEmulator.paused();
+    if ( paused && !mPaused.exchange( true ) && mAudio != nullptr )
+    {
+      // So that sound resumes at once, not after what was queued.
+      mAudio->clear();
+    }
+    mPaused = paused;
 
     // The host's clock paces the emulation, so that it runs at the board's
     // speed whatever the display's refresh rate; the audio device's clock
@@ -262,7 +269,7 @@ void EmulationThread::loop()
     machine::Machine* const machine = mEmulator.machine();
     auto wakeAt = now + IDLE_WAIT;
     bool const rewinding = mRewinding;
-    if ( machine == nullptr || ( mPaused && !rewinding ) )
+    if ( machine == nullptr || ( paused && !rewinding ) )
     {
       owed = 0.0;
     }

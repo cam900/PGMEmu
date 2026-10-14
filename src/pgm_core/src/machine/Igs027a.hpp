@@ -14,8 +14,12 @@
 #include "Protection.hpp"
 #include "cpu/Arm7.hpp"
 
+#include "pgm/machine/Machine.hpp"
+
 #include <array>
 #include <cstdint>
+#include <optional>
+#include <set>
 #include <span>
 #include <vector>
 
@@ -70,8 +74,21 @@ public:
   void serialize( StateReader& archive ) override;
 
   [[nodiscard]] Igs027a const* igs027a() const override;
+  [[nodiscard]] Igs027a* igs027a() override;
 
   [[nodiscard]] cpu::Arm7 const& arm() const;
+  /// The ARM's registers, as the debugger shows them.
+  [[nodiscard]] Arm7Registers registers() const;
+
+  /// The ARM addresses whose instructions a debugger stops at. The ARM is not
+  /// stopped there: the first one it reaches is kept, with its registers as
+  /// they were then, and the 68000's run stops instead
+  /// (docs/decisions/0023-breakpoints-on-the-caught-up-cpus.md).
+  [[nodiscard]] std::set<std::uint32_t>& breakpoints();
+  [[nodiscard]] std::set<std::uint32_t> const& breakpoints() const;
+  /// The registers at the first breakpoint reached since clearBreakpointHit().
+  [[nodiscard]] std::optional<Arm7Registers> const& breakpointHit() const;
+  void clearBreakpointHit();
   /// The `size` bytes at `address` as the ARM would read them, without what
   /// reading some of them does.
   [[nodiscard]] std::uint32_t peekArm( std::uint32_t address, unsigned size ) const;
@@ -128,6 +145,9 @@ private:
   bool mFiq{};
   /// The ARM's clock pulses when its reset was let go.
   std::int64_t mPulsesAtStart{};
+
+  std::set<std::uint32_t> mBreakpoints;
+  std::optional<Arm7Registers> mBreakpointHit;
 };
 
 } // namespace pgm::machine

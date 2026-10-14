@@ -19,14 +19,18 @@ build/release/src/pgm_cli/pgmemu-cli --server tcp:7701 --bios ../ROMS/pgm.zip --
 ```
 
 Games are `roms/<set>.pgm` (build them with `scripts/make-pgm.sh` if `roms/` is empty); `pgm` is
-the BIOS alone. When done, stop the one you started, by its port:
+the BIOS alone. A game may follow the flags, loaded before the first request: `... --state-dir
+build orlegend`. When done, stop the one you started, by its port:
 `pkill -f "pgmemu-cli --server tcp:7701"`.
 
 If 7701 is taken, pick another port and pass it to every request as `--port PORT`, written out on
 each call (zsh does not split a command kept in a variable).
 
 A person may have the desktop application open instead, started with `--server tcp:7701`: then
-the same requests drive the game on their screen, and you must not start a second server.
+the same requests drive the game on their screen, and you must not start a second server. The
+window runs the game by itself between your requests: read what you need right after the run that
+stops where you want it, or `emu.pause` it first (`emu.resume` when done). A breakpoint or a
+watchpoint its own run reaches pauses it, and `emu.status` then says where it stopped.
 
 To have the emulator as MCP tools in your own sessions instead, with screenshots shown as
 images, register it for yourself (it is not committed, as each session would then run the binary
@@ -42,8 +46,8 @@ scripts/pgmemu.py emu.run_frames count=600
 scripts/pgmemu.py video.screenshot path=build/shot.png     # then Read build/shot.png to see it
 ```
 
-Parameters are `key=value` (JSON values; `0x...` is hex) or one JSON object. The answer is the
-result as JSON; an error goes to stderr with exit status 1. Numbers in answers are decimal:
+Parameters are `key=value` (JSON values; `0x...` is hex) or one JSON object. Over MCP, or in
+raw JSON, an integer may be a string `"0x1478"`. The answer is the result as JSON; an error goes to stderr with exit status 1. Numbers in answers are decimal:
 `"pc": 1050780` is 0x10089c.
 
 ## What to ask for
@@ -53,21 +57,24 @@ result as JSON; an error goes to stderr with exit status 1. Numbers in answers a
 | Load, reset, see where it is | `emu.load_game {name, region}`, `emu.reset {cycles: 100}`, `emu.status`, `emu.cartridge_info` |
 | Region | `emu.set_region {region}`: a code from `emu.cartridge_info`'s `region_info`, such as `JAPN`; powers up anew |
 | Run | `emu.run_frames {count}` (60 is a second), `emu.run_cycles {count}` (50 MHz master ticks), `emu.run_until {condition, timeout_cycles}` |
-| Stop at code | `debug.breakpoint.add/remove/list {address}`: a run stops before that instruction |
+| Stop at code | `debug.breakpoint.add/remove/list {address, cpu}` (`m68k` by default, `z80`, `arm7`): the 68000 stops before that instruction; for the Z80 or the ARM7 the run stops just after, and the answer's `breakpoint.registers` are theirs at the breakpoint |
 | Stop at data | `debug.watchpoint.add {address, size, access: read/write/access}`: a run stops after the instruction, and its answer says what was accessed and from where |
 | See what ran | `debug.trace {count}`: the last instructions, with disassembly |
 | CPUs | `cpu.get_state` (68000), `cpu.get_state {cpu: z80}`, `cpu.get_state {cpu: arm7}` (the IGS027A's), `cpu.disassemble {address, count, cpu}` |
-| Memory | `memory.list_regions`, `memory.read {region, address, size}` (WORK_RAM is 0x800000-0x81FFFF, in 68000 byte order) |
+| Memory | `memory.list_regions`, `memory.read {region, address, size}` (WORK_RAM is 0x800000-0x81FFFF, in 68000 byte order), `memory.write {region, address, data_hex}` (WORK_RAM, VIDEO_RAM, PALETTE_RAM, AUDIO_RAM) |
 | Picture | `video.screenshot {path}`, `video.sprites`, `video.registers`, `video.layers {text, background, sprites}`, `video.tiles {layer, first, count, palette, path}`, `video.tilemap {layer, path}` |
 | Sound | `audio.voices`, `audio.capture_start {path}` / `audio.capture_stop` (a WAV) |
 | Input | `input.press {name}` (up, down, left, right, button1-4, start, coin: held two frames, released two), `input.set` / `input.clear` |
 | State | `state.save {filename}`, `state.load {filename}`, `state.list`, `nvram.save/load` |
 | PGMTest | `test.status` (a page's status block), `debug_link.start/write/read/stop` |
+| The window | `emu.pause`, `emu.resume`: the game on screen stops running by itself |
 
 A run answers `reason`: `completed`, `breakpoint`, `watchpoint`, `condition_met`, `timeout` or
-`halted`. After a breakpoint, the next run executes that instruction before stopping again; a
-breakpoint in code that runs every frame stops every run within a frame, so remove it
-(`debug.breakpoint.remove`) to run on.
+`halted`, and with `breakpoint` an object saying which CPU and where. After a 68000 breakpoint,
+the next run executes that instruction before stopping again; a breakpoint in code that runs every
+frame stops every run within a frame, so remove it (`debug.breakpoint.remove`) to run on. A Z80
+or ARM7 breakpoint in a loop does the same. While either has one, runs are about 40 percent
+slower.
 
 `video.sprites` answers `{count, sprites}` in list order, a later sprite drawn over an earlier
 one. `x` (11 bits) and `y` (10 bits) are raw and wrap: x 1508 is off screen. `width` is in units of
@@ -123,5 +130,8 @@ another instruction; leave them out with `--ignore WORK_RAM:1f000-20000`.
 
 - Time is counted in master ticks of 50 MHz. A frame is 844,800 of them.
 - `video.screenshot` without `path` returns base64; give a path and Read the file to see it.
+- `cpu.get_state {cpu: z80}` can catch the Z80 inside an instruction: its `pc` may point at an
+  operand byte, not at an instruction. To stop at Z80 code, take an address from a disassembly of
+  its RAM (`memory.read region=AUDIO_RAM`), not from that `pc`.
 - A save state belongs to the build and the game that wrote it.
 - Requests are answered one at a time; a long `emu.run_frames` holds the others back.

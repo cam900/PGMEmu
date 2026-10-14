@@ -8,6 +8,7 @@
 #include "pgm/control/Dispatcher.hpp"
 #include "pgm/machine/Machine.hpp"
 
+#include <algorithm>
 #include <array>
 #include <string>
 
@@ -215,4 +216,96 @@ TEST_CASE( "the trace holds the last instructions executed, oldest first", "[mac
   REQUIRE( trace[2].pc == VBLANK_HANDLER + 8 );
   REQUIRE( trace[0].ticks < trace[1].ticks );
   REQUIRE( machine.trace( 100000 ).size() <= Machine::TRACE_SIZE );
+}
+
+// The test BIOS leaves the Z80 out of reset with its RAM clear, so it runs
+// NOPs through all of it: every Z80 address is an instruction it reaches.
+TEST_CASE( "a Z80 breakpoint ends the run, with the Z80's registers as they were there", "[machine]" )
+{
+  BiosFixture const fixture{ vblankCounter() };
+  auto const bios = fixture.load();
+  Machine machine{ bios, nullptr };
+  REQUIRE( machine.addBreakpoint( 0x100, pgm::machine::Cpu::Z80 ) );
+  REQUIRE( machine.breakpoints( pgm::machine::Cpu::Z80 ).contains( 0x100 ) );
+  REQUIRE( machine.hasDebugPoints() );
+
+  // The first frame boundary comes 11 master ticks after power-up.
+  auto const run = machine.runFrames( 2 );
+
+  REQUIRE( run.reason == StopReason::BREAKPOINT );
+  auto const hit = valueOf( machine.breakpointHit() );
+  REQUIRE( hit.cpu == pgm::machine::Cpu::Z80 );
+  REQUIRE( hit.address == 0x100 );
+  REQUIRE( valueOf( hit.z80 ).pc == 0x100 );
+  // The Z80 itself ran on to the 68000's time, a few NOPs further.
+  REQUIRE( machine.z80Registers().pc > 0x100 );
+
+  machine.removeBreakpoint( 0x100, pgm::machine::Cpu::Z80 );
+  REQUIRE_FALSE( machine.hasDebugPoints() );
+  REQUIRE( machine.runFrames( 3 ).reason == StopReason::COMPLETED );
+  REQUIRE_FALSE( machine.breakpointHit().has_value() );
+}
+
+// Compared by what a machine shows rather than by its save state, whose
+// bytes include structs' padding, which no run sets.
+TEST_CASE( "stopping at Z80 breakpoints leaves the emulation as it would have been", "[machine]" )
+{
+  BiosFixture const fixture{ vblankCounter() };
+  auto const bios = fixture.load();
+  Machine plain{ bios, nullptr };
+  Machine stopped{ bios, nullptr };
+  stopped.addBreakpoint( 0x2000, pgm::machine::Cpu::Z80 );
+
+  plain.runFrames( 4 );
+  int stops = 0;
+  while ( stopped.frame() < 4 )
+  {
+    if ( stopped.runFrames( 1 ).reason == StopReason::BREAKPOINT )
+    {
+      ++stops;
+    }
+  }
+
+  REQUIRE( stops > 0 );
+  REQUIRE( stopped.now() == plain.now() );
+  REQUIRE( std::ranges::equal( stopped.workRam(), plain.workRam() ) );
+  REQUIRE( std::ranges::equal( stopped.videoRam(), plain.videoRam() ) );
+  REQUIRE( std::ranges::equal( stopped.paletteRam(), plain.paletteRam() ) );
+  REQUIRE( std::ranges::equal( stopped.z80Ram(), plain.z80Ram() ) );
+  REQUIRE( std::ranges::equal( stopped.picture(), plain.picture() ) );
+  REQUIRE( stopped.m68kState().pc == plain.m68kState().pc );
+  REQUIRE( stopped.m68kState().d == plain.m68kState().d );
+  REQUIRE( stopped.m68kState().a == plain.m68kState().a );
+  REQUIRE( stopped.m68kState().sr == plain.m68kState().sr );
+  REQUIRE( stopped.z80Registers().pc == plain.z80Registers().pc );
+  REQUIRE( stopped.z80Registers().af == plain.z80Registers().af );
+  REQUIRE( stopped.z80Registers().sp == plain.z80Registers().sp );
+}
+
+TEST_CASE( "the board without an IGS027A takes no ARM7 breakpoint", "[machine]" )
+{
+  BiosFixture const fixture{ vblankCounter() };
+  auto const bios = fixture.load();
+  Machine machine{ bios, nullptr };
+
+  REQUIRE_FALSE( machine.addBreakpoint( 0x1000, pgm::machine::Cpu::ARM7 ) );
+  REQUIRE( machine.breakpoints( pgm::machine::Cpu::ARM7 ).empty() );
+}
+
+TEST_CASE( "a debugger writes RAM whole or not at all", "[machine]" )
+{
+  BiosFixture const fixture{ vblankCounter() };
+  auto const bios = fixture.load();
+  Machine machine{ bios, nullptr };
+  std::array<std::uint8_t, 2> const bytes{ 0x12, 0x34 };
+
+  REQUIRE( machine.writeRam( pgm::machine::Ram::WORK, 0x100, bytes ) );
+  REQUIRE( wordAt( machine.workRam(), 0x100 ) == 0x1234 );
+  REQUIRE( machine.writeRam( pgm::machine::Ram::AUDIO, 0xfffe, bytes ) );
+  REQUIRE( wordAt( machine.z80Ram(), 0xfffe ) == 0x1234 );
+  REQUIRE( machine.writeRam( pgm::machine::Ram::PALETTE, 0, bytes ) );
+  REQUIRE( wordAt( machine.paletteRam(), 0 ) == 0x1234 );
+
+  REQUIRE_FALSE( machine.writeRam( pgm::machine::Ram::VIDEO, machine.videoRam().size() - 1, bytes ) );
+  REQUIRE( machine.videoRam().back() == 0 );
 }

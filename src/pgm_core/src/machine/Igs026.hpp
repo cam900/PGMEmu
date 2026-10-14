@@ -18,6 +18,8 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
+#include <set>
 #include <span>
 
 namespace pgm::machine
@@ -44,6 +46,19 @@ public:
 
   /// The Z80's RAM, by Z80 address: what the RTL simulator's AUDIO_RAM is.
   [[nodiscard]] std::span<std::uint8_t const> z80Ram() const;
+  /// The same RAM, for a debugger to write.
+  [[nodiscard]] std::span<std::uint8_t> z80RamForDebugger();
+
+  /// The Z80 addresses whose instructions a debugger stops at. The Z80 is not
+  /// stopped there: the first one it fetches is kept, with its registers as
+  /// they were then, and the 68000's run stops instead
+  /// (docs/decisions/0023-breakpoints-on-the-caught-up-cpus.md).
+  [[nodiscard]] std::set<std::uint32_t>& breakpoints();
+  [[nodiscard]] std::set<std::uint32_t> const& breakpoints() const;
+  /// The registers at the first breakpoint reached since clearBreakpointHit(),
+  /// `pc` the breakpoint's address.
+  [[nodiscard]] std::optional<Z80Registers> const& breakpointHit() const;
+  void clearBreakpointHit();
 
   /// Whether the Z80 is held in reset by the 68000 (register 0xC00008 bit 0).
   [[nodiscard]] bool z80InReset() const;
@@ -89,6 +104,9 @@ private:
   std::int64_t mZ80Pulses{};
   /// The Z80 tick before which the ICS2115 next has to be brought up to date.
   std::int64_t mIcs2115DueAt{};
+
+  std::set<std::uint32_t> mBreakpoints;
+  std::optional<Z80Registers> mBreakpointHit;
 };
 
 } // namespace pgm::machine

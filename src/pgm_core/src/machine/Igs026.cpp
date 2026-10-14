@@ -193,6 +193,13 @@ void Igs026::advanceTo( Time now )
     }
     ++mZ80Pulses;
     mZ80.tick( side, busRequested() );
+    if ( !mBreakpoints.empty() && !mBreakpointHit && mZ80.instructionBoundary() &&
+         mBreakpoints.contains( mZ80.address() ) )
+    {
+      // The registers' pc has already moved past the opcode being fetched.
+      mBreakpointHit = mZ80.registers();
+      mBreakpointHit->pc = mZ80.address();
+    }
   }
   // The ICS2115 runs on to the present: no Z80 tick falls before it.
   mIcs2115.advanceTo( ce33mPulses( ticks ) );
@@ -309,6 +316,31 @@ void Igs026::write( Time now, std::uint32_t address, std::uint16_t value, bool u
 std::span<std::uint8_t const> Igs026::z80Ram() const
 {
   return mZ80Ram;
+}
+
+std::span<std::uint8_t> Igs026::z80RamForDebugger()
+{
+  return mZ80Ram;
+}
+
+std::set<std::uint32_t>& Igs026::breakpoints()
+{
+  return mBreakpoints;
+}
+
+std::set<std::uint32_t> const& Igs026::breakpoints() const
+{
+  return mBreakpoints;
+}
+
+std::optional<Z80Registers> const& Igs026::breakpointHit() const
+{
+  return mBreakpointHit;
+}
+
+void Igs026::clearBreakpointHit()
+{
+  mBreakpointHit.reset();
 }
 
 } // namespace pgm::machine

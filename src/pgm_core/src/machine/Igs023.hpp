@@ -90,6 +90,9 @@ public:
   /// byte order: what the RTL simulator's VIDEO_RAM and PALETTE_RAM are.
   [[nodiscard]] std::span<std::uint8_t const> vram() const;
   [[nodiscard]] std::span<std::uint8_t const> palette() const;
+  /// The same two, for a debugger to write.
+  [[nodiscard]] std::span<std::uint8_t> vramForDebugger();
+  [[nodiscard]] std::span<std::uint8_t> paletteForDebugger();
 
   /// The last complete frame, RGBA, 448 by 224, and how many have completed.
   [[nodiscard]] std::span<std::uint8_t const> frame() const;

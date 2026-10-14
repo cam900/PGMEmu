@@ -23,7 +23,7 @@ build/debug/src/pgm_app/pgmemu --bios ../ROMS/pgm.zip --rom-dir roms orlegend   
 build/debug/src/pgm_app/pgmemu --bios ../ROMS/pgm.zip --rom-dir roms --server tcp:7701 --mcp-http 7702 orlegend   # with agents attached
 build/debug/src/pgm_cli/pgmemu-cli --info roms/orlegend.pgm
 build/debug/src/pgm_cli/pgmemu-cli --server --bios ../ROMS/pgm.zip --rom-dir roms
-build/debug/src/pgm_cli/pgmemu-cli --mcp --bios ../ROMS/pgm.zip --rom-dir roms   # MCP for an agent; --state-dir DIR for save states
+build/debug/src/pgm_cli/pgmemu-cli --mcp --bios ../ROMS/pgm.zip --rom-dir roms orlegend   # MCP for an agent, a game loaded; --state-dir DIR for save states
 ```
 
 An agent drives the emulator with the project skill, `.claude/skills/pgmemu/SKILL.md`: a headless
@@ -44,6 +44,8 @@ scripts/pgmemu.py video.screenshot path=build/shot.png
 ./scripts/make-pgmtest.sh --all                     # every PGMTest page, for the regression suite
 ctest --preset release -L regression                # golden frames of the BIOS, every game and every page
 build/release/src/pgm_cli/pgmemu-cli --batch tests/regression/orlegend.json --bios ../ROMS/pgm.zip --rom-dir roms --record   # re-record one
+ctest --preset release -L control                   # the protocol's recorded transcripts, tests/control/*.jsonl
+(cd tests && ../build/release/src/pgm_cli/pgmemu-cli --transcript control/mcp.jsonl --mcp > control/mcp.expect)   # re-record one, after a deliberate change of answers
 ./scripts/benchmark.sh                              # headless speed of every game
 ./scripts/measure-lag.py                            # the frame each game first answers a control on, about 6 min
 ./scripts/compile-shaders.sh                        # the screen's shaders, after changing their GLSL (brew install glslang spirv-cross)
@@ -77,9 +79,9 @@ session takes one milestone by name.
 |---|---|
 | `src/pgm_core/` | The emulated machine and the control dispatcher. All logic; no SDL, ImGui, threads or file dialogs; deterministic. `moira/MoiraConfig.h` is Moira's configuration ([0009](docs/decisions/0009-moira-configuration.md)). |
 | `src/pgm_server/` | Transports onto the dispatcher: JSON-lines (stdio, TCP) and MCP. |
-| `src/pgm_cli/` | `pgmemu-cli`: headless runs, `--server`, `--mcp`. Argument parsing and I/O only. |
+| `src/pgm_cli/` | `pgmemu-cli`: headless runs, `--server`, `--mcp`, `--transcript`. Argument parsing and I/O only. |
 | `src/pgm_app/` | `pgmemu`: the SDL3 + Dear ImGui desktop frontend. |
-| `tests/` | Catch2 v3 tests, linked against `pgm_core`. |
+| `tests/` | Catch2 v3 tests, linked against `pgm_core`; `control/` also holds the protocol's recorded transcripts. |
 | `libextern/` | Third-party code carried in the tree, unmodified. Not formatted, not tidied. `libextern/README.md` is the inventory. |
 | `cmake/` | `Warnings.cmake`, `Dependencies.cmake`. |
 | `docs/` | See `docs/README.md`; it is the index and the rulebook. |

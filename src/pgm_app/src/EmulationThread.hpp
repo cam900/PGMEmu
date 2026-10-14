@@ -46,8 +46,10 @@ public:
   /// The dispatcher's methods, which do not change once it is made.
   [[nodiscard]] std::vector<control::Method> const& methods() const;
 
-  /// Stops running frames, or starts again; requests are answered either way.
-  void setPaused( bool paused );
+  /// Whether frames are not being run: the emulator's paused(), which
+  /// `emu.pause` and `emu.resume` set, and a breakpoint or a watchpoint the
+  /// frames run reach sets. Requests are answered either way.
+  [[nodiscard]] bool paused() const;
 
   /// The buttons the keyboard and the gamepads hold, PGM.sv's IN0..IN3,
   /// applied before each frame.
@@ -80,7 +82,8 @@ private:
   /// Answers every request waiting, on the emulation thread.
   void serveRequests();
   /// Runs one frame and hands its sound and picture on, and keeps its state;
-  /// with run-ahead, the picture is that of the frames run past it.
+  /// with run-ahead, the picture is that of the frames run past it. A
+  /// breakpoint or a watchpoint ends the frame early and pauses.
   void runFrame( machine::Machine& machine );
   /// Keeps `state` as the latest of the history, while one is kept.
   void keep( std::vector<std::uint8_t> state );
@@ -102,6 +105,7 @@ private:
   std::deque<Pending> mPending;
   bool mStop{};
 
+  /// The emulator's paused(), as of the last time the thread looked.
   std::atomic<bool> mPaused{};
   std::atomic<std::uint64_t> mHostInputs{};
   std::atomic<bool> mRewindKept{ true };

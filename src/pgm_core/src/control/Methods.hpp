@@ -49,7 +49,18 @@ MethodInfo info( std::string_view description, std::initializer_list<Param> para
 std::expected<std::string, Error> requireString( Json const& params, std::string_view name );
 
 /// The non-negative integer `params[name]`, or the `bad_request` that says it
-/// is missing or is not one.
+/// is missing or is not one. A string of hex digits after `0x` or `$` is one
+/// too.
 std::expected<std::uint64_t, Error> requireUnsigned( Json const& params, std::string_view name );
+
+/// A CPU's registers as `cpu.get_state` answers them, without what it adds of
+/// the machine (`halted`, `disasm`).
+Json z80Json( machine::Z80Registers const& registers );
+Json arm7Json( machine::Arm7Registers const& registers );
+
+/// Where the last run stopped, when it was at a breakpoint or a watchpoint: the
+/// `breakpoint` or `watchpoint` object of a run's answer, under its name.
+/// Empty otherwise.
+Json debugStopOf( machine::Machine const& machine );
 
 } // namespace pgm::control

@@ -147,6 +147,43 @@ struct Machine::Parts
   /// Runs until `until`, or until `condition` holds after an instruction.
   RunResult run( Time until, std::function<bool()> const* condition );
 
+  /// The board's IGS027A, or null.
+  [[nodiscard]] Igs027a* arm() const
+  {
+    return protection ? protection->igs027a() : nullptr;
+  }
+
+  /// Whether the Z80 or the ARM7 has breakpoints, so that they are caught up
+  /// after every 68000 instruction to see whether they reached one.
+  [[nodiscard]] bool sideBreakpoints() const
+  {
+    return !io.breakpoints().empty() || ( arm() != nullptr && !arm()->breakpoints().empty() );
+  }
+
+  /// Catches the sound side and the protection up to now. The first breakpoint
+  /// either reached since the run began becomes the run's, if it has none.
+  void catchUp()
+  {
+    io.advanceTo( now );
+    if ( protection )
+    {
+      protection->advanceTo( now );
+    }
+    if ( hit )
+    {
+      return;
+    }
+    if ( auto const& sound = io.breakpointHit() )
+    {
+      hit = BreakpointHit{ .cpu = Cpu::Z80, .address = sound->pc, .z80 = sound, .arm7 = std::nullopt };
+    }
+    else if ( arm() != nullptr && arm()->breakpointHit() )
+    {
+      auto const& registers = *arm()->breakpointHit();
+      hit = BreakpointHit{ .cpu = Cpu::ARM7, .address = registers.pc, .z80 = std::nullopt, .arm7 = registers };
+    }
+  }
+
   template <class Archive>
   void serialize( Archive& archive )
   {
@@ -175,6 +212,8 @@ struct Machine::Parts
   /// stopping at again.
   std::optional<std::uint32_t> resumeFrom;
   std::set<std::uint32_t> breakpoints;
+  /// The breakpoint that ended the last run.
+  std::optional<BreakpointHit> hit;
   WatchState watch;
   /// The last instructions executed, a ring: traceNext is where the next goes.
   std::array<TraceEntry, Machine::TRACE_SIZE> traceRing{};
@@ -211,17 +250,25 @@ RunResult Machine::Parts::run( Time until, std::function<bool()> const* conditio
 {
   audio.clear();
   watch.hit.reset();
+  hit.reset();
+  io.clearBreakpointHit();
+  if ( arm() != nullptr )
+  {
+    arm()->clearBreakpointHit();
+  }
+  bool const sideStops = sideBreakpoints();
   Time const start = now;
   std::int64_t const startFrame =
       start < FRAME_BOUNDARY_OFFSET ? 0 : ( ( start - FRAME_BOUNDARY_OFFSET ) / UNITS_PER_FRAME ) + 1;
   auto const result = [&]( StopReason reason )
   {
     // The sound side and the protection have only been caught up as far as
-    // the 68000 last reached them.
-    io.advanceTo( now );
-    if ( protection )
+    // the 68000 last reached them; what they reach on the way is the run's
+    // stop, unless the 68000 stopped for its own reason.
+    catchUp();
+    if ( hit && ( reason == StopReason::COMPLETED || reason == StopReason::TIMEOUT ) )
     {
-      protection->advanceTo( now );
+      reason = StopReason::BREAKPOINT;
     }
     ics2115.takeFrames( audio );
     if ( audioListener )
@@ -237,6 +284,14 @@ RunResult Machine::Parts::run( Time until, std::function<bool()> const* conditio
 
   while ( now < until )
   {
+    if ( sideStops )
+    {
+      catchUp();
+      if ( hit )
+      {
+        return result( StopReason::BREAKPOINT );
+      }
+    }
     if ( !cpuStarted )
     {
       if ( now < resetReleasedAt )
@@ -264,6 +319,7 @@ RunResult Machine::Parts::run( Time until, std::function<bool()> const* conditio
     if ( !breakpoints.empty() && breakpoints.contains( pc ) && resumeFrom != pc )
     {
       resumeFrom = pc;
+      hit = BreakpointHit{ .cpu = Cpu::M68K, .address = pc, .z80 = std::nullopt, .arm7 = std::nullopt };
       return result( StopReason::BREAKPOINT );
     }
     resumeFrom.reset();
@@ -448,19 +504,69 @@ bool Machine::loadState( std::span<std::uint8_t const> state )
   return true;
 }
 
-void Machine::addBreakpoint( std::uint32_t address )
+bool Machine::addBreakpoint( std::uint32_t address, Cpu cpu )
 {
-  mParts->breakpoints.insert( address );
+  switch ( cpu )
+  {
+  case Cpu::M68K:
+    mParts->breakpoints.insert( address );
+    return true;
+  case Cpu::Z80:
+    mParts->io.breakpoints().insert( address & 0xffffU );
+    return true;
+  case Cpu::ARM7:
+    break;
+  }
+  if ( mParts->arm() == nullptr )
+  {
+    return false;
+  }
+  mParts->arm()->breakpoints().insert( address );
+  return true;
 }
 
-void Machine::removeBreakpoint( std::uint32_t address )
+void Machine::removeBreakpoint( std::uint32_t address, Cpu cpu )
 {
-  mParts->breakpoints.erase( address );
+  switch ( cpu )
+  {
+  case Cpu::M68K:
+    mParts->breakpoints.erase( address );
+    return;
+  case Cpu::Z80:
+    mParts->io.breakpoints().erase( address & 0xffffU );
+    return;
+  case Cpu::ARM7:
+    break;
+  }
+  if ( mParts->arm() != nullptr )
+  {
+    mParts->arm()->breakpoints().erase( address );
+  }
 }
 
-std::set<std::uint32_t> const& Machine::breakpoints() const
+std::set<std::uint32_t> const& Machine::breakpoints( Cpu cpu ) const
 {
-  return mParts->breakpoints;
+  static std::set<std::uint32_t> const NONE;
+  switch ( cpu )
+  {
+  case Cpu::M68K:
+    return mParts->breakpoints;
+  case Cpu::Z80:
+    return mParts->io.breakpoints();
+  case Cpu::ARM7:
+    break;
+  }
+  return mParts->arm() != nullptr ? mParts->arm()->breakpoints() : NONE;
+}
+
+std::optional<BreakpointHit> const& Machine::breakpointHit() const
+{
+  return mParts->hit;
+}
+
+bool Machine::hasDebugPoints() const
+{
+  return !mParts->breakpoints.empty() || !mParts->watch.points.empty() || mParts->sideBreakpoints();
 }
 
 void Machine::addWatchpoint( Watchpoint watchpoint )
@@ -521,6 +627,36 @@ void Machine::writeWorkRam( std::size_t offset, std::span<std::uint8_t const> by
   }
   std::size_t const count = std::min( bytes.size(), ram.size() - offset );
   std::ranges::copy( bytes.first( count ), ram.begin() + static_cast<std::ptrdiff_t>( offset ) );
+}
+
+bool Machine::writeRam( Ram ram, std::size_t offset, std::span<std::uint8_t const> bytes )
+{
+  Parts& parts = *mParts;
+  std::span<std::uint8_t> target;
+  switch ( ram )
+  {
+  case Ram::WORK:
+    target = parts.workRam;
+    break;
+  case Ram::VIDEO:
+    target = parts.video.vramForDebugger();
+    break;
+  case Ram::PALETTE:
+    target = parts.video.paletteForDebugger();
+    break;
+  case Ram::AUDIO:
+    // The Z80 sees the bytes from the 68000's time on, not from where it was
+    // last caught up to.
+    parts.io.advanceTo( parts.now );
+    target = parts.io.z80RamForDebugger();
+    break;
+  }
+  if ( offset > target.size() || bytes.size() > target.size() - offset )
+  {
+    return false;
+  }
+  std::ranges::copy( bytes, target.begin() + static_cast<std::ptrdiff_t>( offset ) );
+  return true;
 }
 
 std::span<std::uint8_t const> Machine::workRam() const
@@ -633,43 +769,12 @@ std::size_t Machine::ics2115ActiveVoices() const
 
 std::optional<Arm7Registers> Machine::arm7Registers() const
 {
-  Igs027a const* const chip = mParts->protection ? mParts->protection->igs027a() : nullptr;
+  Igs027a const* const chip = mParts->arm();
   if ( chip == nullptr )
   {
     return std::nullopt;
   }
-  cpu::Arm7 const& arm = chip->arm();
-  cpu::Arm7State const& state = arm.state();
-  Arm7Registers registers;
-  for ( unsigned i = 0; i < 16; ++i )
-  {
-    registers.r.at( i ) = arm.reg( i );
-  }
-  registers.cpsr = state.cpsr;
-  switch ( state.cpsr & cpu::Arm7::MODE_MASK )
-  {
-  case cpu::Arm7::MODE_FIQ:
-    registers.spsr = state.spsr[0];
-    break;
-  case cpu::Arm7::MODE_SUPERVISOR:
-    registers.spsr = state.spsr[1];
-    break;
-  case cpu::Arm7::MODE_ABORT:
-    registers.spsr = state.spsr[2];
-    break;
-  case cpu::Arm7::MODE_IRQ:
-    registers.spsr = state.spsr[3];
-    break;
-  case cpu::Arm7::MODE_UNDEFINED:
-    registers.spsr = state.spsr[4];
-    break;
-  default:
-    break;
-  }
-  registers.pc = arm.pc();
-  registers.fiq = state.fiqLine;
-  registers.cycles = state.cycles;
-  return registers;
+  return chip->registers();
 }
 
 std::optional<std::string> Machine::disassembleArm7( std::uint32_t address, bool thumb, int& length ) const

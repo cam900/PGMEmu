@@ -107,6 +107,12 @@ public:
   /// Every region that holds something now, in a stable order.
   [[nodiscard]] std::vector<MemoryRegion> memoryRegions() const;
 
+  /// Whether the frontend's own run is paused. The emulator runs only when it
+  /// is asked to; the desktop application runs it frame after frame, unless
+  /// this is set. A breakpoint or a watchpoint that its run reaches sets it.
+  [[nodiscard]] bool paused() const;
+  void setPaused( bool paused );
+
 private:
   [[nodiscard]] std::expected<cart::Bios, LoadFailure> loadBios() const;
 
@@ -126,6 +132,7 @@ private:
   std::optional<cart::PgmImage> mCartridge;
   /// The agnostic id of the region chosen when the game was loaded.
   std::optional<std::uint32_t> mRegion;
+  bool mPaused{};
   // Declared last, so that it goes before the ROMs it reads from.
   std::unique_ptr<machine::Machine> mMachine;
 };

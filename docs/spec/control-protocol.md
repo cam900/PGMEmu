@@ -1,48 +1,187 @@
 # The control protocol
 
-This is what a client sends to the emulator and what it gets back, whatever carries the bytes.
+This document specifies how a client controls the emulator: what it sends, and what it gets back.
 Why there is one protocol, and why it is the RTL simulator's, is
 [0005](../decisions/0005-one-control-api.md). The simulator's own description,
 `../Arcade-IGSPGM_MiSTer/docs/sim-server.md`, is the baseline. This document says where the
 emulator matches it and what it adds.
 
-## 1. Framing (JSON-lines)
+There is one set of methods (§6). Two protocols carry them:
+
+- **JSON lines**, in the format of §2 and §3, on stdio or TCP.
+- **MCP** (Model Context Protocol), where each method is a tool, on stdio or HTTP.
+
+A method takes the same parameters and gives the same result in both.
+
+## 0. Quick start
+
+Start a server on TCP, then send JSON lines from a shell. All connections control the same
+emulator.
+
+```sh
+pgmemu-cli --server tcp:7701 --bios pgm.zip --rom-dir images orlegend &
+printf '%s\n' '{"id":1,"method":"emu.run_frames","params":{"count":600}}' \
+              '{"id":2,"method":"video.screenshot","params":{"path":"shot.png"}}' | nc -w 60 127.0.0.1 7701
+```
+
+```json
+{"id":1,"ok":true,"result":{"reason":"completed","ticks_executed":506035225,"frames_executed":600}}
+{"id":2,"ok":true,"result":{"width":448,"height":224,"frame":600,"path":"shot.png"}}
+```
+
+These answers come from orlegend. Other games give other numbers.
+
+`scripts/pgmemu.py` sends one request per call. It prints the `result` as indented JSON. On an
+error, it prints the error on stderr and exits with status 1.
+
+```sh
+scripts/pgmemu.py --port 7701 emu.run_frames count=600
+scripts/pgmemu.py --port 7701 memory.read region=WORK_RAM address=0x1478 size=4
+```
+
+For an AI agent, use MCP. On stdio, the client starts the server itself. The desktop application
+serves MCP on HTTP, and the client connects to it.
+
+```sh
+claude mcp add pgmemu -- /path/to/pgmemu-cli --mcp --bios /path/to/pgm.zip --rom-dir /path/to/images
+pgmemu --mcp-http 7702 &                                   # the desktop application, then
+claude mcp add --transport http pgmemu http://127.0.0.1:7702/mcp
+```
+
+Other MCP clients take a configuration like this one:
+
+```json
+{"mcpServers":{"pgmemu":{"command":"/path/to/pgmemu-cli","args":["--mcp","--bios","/path/to/pgm.zip","--rom-dir","/path/to/images"]}}}
+```
+
+## 1. Transports
+
+### JSON lines on stdio
 
 `pgmemu-cli --server` reads requests on stdin and writes responses on stdout.
 
-- One request is one line holding one JSON object. One response is one line holding one JSON
-  object, written in the order the requests arrived and flushed after each.
-- Blank lines are skipped and are not answered.
-- stdout carries responses and nothing else. Logs go to stderr.
-- Serving ends when stdin ends.
+- Each request is one line with one JSON object. Each response is one line with one JSON object.
+- Responses are written in the order of the requests. Each response is flushed.
+- Blank lines are skipped. They get no response.
+- A line can end with `\n` or `\r\n`. There is no limit on its length. A newline inside a string
+  must be escaped, as JSON requires.
+- stdout carries only responses. Logs go to stderr. The server writes one line about itself to
+  stderr when it starts.
+- The server stops when stdin ends.
 
-`pgmemu-cli --server tcp:PORT` serves the same lines on TCP instead, on 127.0.0.1 only, until the
-process is ended; requests from all connections are answered one at a time. It is how a script
-or an agent keeps one emulator across many short commands (`scripts/pgmemu.py`).
+This is the simulator's framing, so a script written against `./sim --server` drives the emulator
+unchanged.
 
-`pgmemu --server tcp:PORT` serves them from the desktop application while its window is
-open. Each connection is a session of its own; requests from all of them, and from the window,
-are answered in turn on the emulation thread, on the machine on screen
-([0012](../decisions/0012-network-transports.md)).
+### JSON lines on TCP
 
-### MCP
+`pgmemu-cli --server tcp:PORT` serves the same lines on TCP. It listens on 127.0.0.1 only. It runs
+until the process is stopped.
 
-`pgmemu-cli --mcp` speaks the Model Context Protocol on stdio instead: JSON-RPC 2.0 messages, one
-per line. It answers `initialize`, `ping`, `tools/list` and `tools/call`.
+- Any number of connections can be open.
+- Each connection has its own stream of lines. Its responses come in the order of its requests.
+- A connection ends when the client closes it.
+- All connections control **the same** emulator. A game that one client loads is the game that
+  all clients see.
+- Requests from all connections are answered one at a time. Each request is finished before the
+  next one starts.
 
-- Every method below is a tool, named with underscores for its dots: `emu.run_frames` is
-  `emu_run_frames`. The `sim.` aliases are left out. A tool's description and input schema are
-  the method's, from the dispatcher's method table.
-- A tool's answer is the method's `result` as JSON text. A screenshot's PNG comes first, as an
-  `image`, and is taken out of the text.
-- A method's failure is a tool result with `isError` set, its text the error's code and message.
-  Only a call that names no tool is a JSON-RPC error.
+This lets a script or an agent keep one emulator across many short commands, as
+`scripts/pgmemu.py` does.
 
-`pgmemu --mcp-http PORT` serves MCP's Streamable HTTP transport at `http://127.0.0.1:PORT/mcp`
-while its window is open. A message is the body of a POST; a request's answer is the body of the
-response, as `application/json`, and a notification is answered `202 Accepted` with none. The
-server streams nothing, so a GET is answered `405`. A request whose `Origin` is not a page of
-`localhost` or `127.0.0.1` is answered `403`.
+There is no authentication. Anyone who can open a connection on this machine controls the
+emulator. They can also make it read and write files, by the paths they give to methods such as
+`emu.load_game`, `video.screenshot`, `audio.capture_start` and `state.save`.
+
+### JSON lines from the desktop application
+
+`pgmemu --server tcp:PORT` serves the same lines from the desktop application, while its window is
+open ([0012](../decisions/0012-network-transports.md)).
+
+- Requests from all connections, and what is done in the window, are handled in turn on the
+  emulation thread, between two frames. They act on the game on screen.
+- The window runs the game by itself, a frame at a time. `emu.pause` stops that; requests are
+  still answered. A breakpoint or a watchpoint that the window's own run reaches pauses it too.
+- The sound of a run made on request is not played.
+
+### MCP on stdio
+
+`pgmemu-cli --mcp` serves the Model Context Protocol on stdio. Messages are JSON-RPC 2.0, one per
+line, framed like the JSON lines above.
+
+- The server answers `initialize`, `ping`, `tools/list` and `tools/call`.
+- `initialize` gives the protocol revision the client asks for, if it is one of `2025-11-25`,
+  `2025-06-18`, `2025-03-26` or `2024-11-05`. Otherwise it gives `2025-11-25`. The only capability
+  is `tools`. The server's name is `pgmemu`, and its version is the one `emu.status` gives. The
+  `instructions` are a short paragraph on how to begin.
+- A message without an `id` is a notification. It gets no answer. `notifications/initialized` is
+  one of these.
+- Batches (JSON arrays) are not supported.
+- Each method in §6 is a tool. The tool's name is the method's name with `_` in place of `.`:
+  `emu.run_frames` becomes `emu_run_frames`. The `sim.` aliases (§5) are left out. The tool's
+  description and `inputSchema` are the method's. The tool's `arguments` are the method's
+  `params`.
+- A tool's answer is a `content` array. It holds the method's `result` as JSON text. When the
+  result holds a PNG (`video.screenshot` without a `path`), the PNG comes first, as an `image` of
+  type `image/png`, and it is removed from the text.
+- When a method fails, the tool result has `isError` set. Its one text is `CODE: message`, with
+  the codes of §4.
+
+Only these cases are JSON-RPC errors:
+
+| Code | When |
+|---|---|
+| -32700 | The line is not JSON. The answer has `id` `null`. |
+| -32600 | Not a JSON-RPC 2.0 request: not an object, `jsonrpc` is not `"2.0"`, or `method` is missing or not a string. |
+| -32601 | A method other than the four above. |
+| -32602 | `tools/call` without a `name`, or with a name that is not a tool. |
+
+### MCP on HTTP, from the desktop application
+
+`pgmemu --mcp-http PORT` serves MCP's Streamable HTTP transport from the desktop application, at
+`http://127.0.0.1:PORT/mcp`.
+
+- Each message is the body of a POST.
+- The answer to a request is the body of the response, as `application/json`.
+- A notification gets `202 Accepted`, with no body.
+- A body that is not JSON gets `400`, with the -32700 error.
+- The server does not stream. A GET gets `405`.
+- The server does not issue an `Mcp-Session-Id`. All clients control the same emulator, as on TCP.
+- A request with an `Origin` header that is not a page on `localhost` or `127.0.0.1` gets `403`. A
+  request without `Origin` (from a program, not a browser) is served.
+
+```sh
+curl -s http://127.0.0.1:7702/mcp -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"emu_status","arguments":{}}}'
+```
+
+The application and its servers act on the game on screen. When a client loads a game, it
+replaces the game in the window. When a file is dropped onto the window, it replaces what the
+clients see.
+
+### A game at start
+
+`pgmemu-cli --server`, `--mcp` and `--transcript` take a game after their flags, as the desktop
+application does: a set name (`pgm` for the BIOS alone) or the path of a `.pgm`. It is loaded
+before the first request, as `emu.load_game` loads it. If it cannot be loaded, the program says
+why on stderr and exits with status 1.
+
+```sh
+pgmemu-cli --mcp --bios pgm.zip --rom-dir images orlegend
+```
+
+### Transcripts
+
+`pgmemu-cli --transcript FILE` answers the requests in FILE, one per line, and prints the answers
+on stdout. Blank lines and lines that start with `#` are skipped. With `--mcp`, the lines are MCP
+messages, and a notification has no answer.
+
+With `--expect ANSWERS`, the answers are compared line by line with the lines of ANSWERS, instead
+of being printed. The first difference is printed. The exit status is 0 when all lines are equal,
+and 1 otherwise.
+
+An answer holds the build's version as `devel`. So a recorded transcript reads the same whatever
+build recorded it, and any build checks it in the same way. `tests/control/` holds the
+transcripts CTest checks.
 
 ## 2. Requests
 
@@ -55,6 +194,14 @@ server streams nothing, so a GET is answered `405`. A request whose `Origin` is 
 | `id` | yes | A non-negative integer, echoed in the response. The protocol does not require ids to be unique or increasing; a client that wants to match responses keeps them so. |
 | `method` | yes | The method's name. |
 | `params` | no | An object. A method that takes no parameters is given `{}` when it is left out. |
+
+Other fields are ignored. Parameters that a method does not use are ignored.
+
+Names are case-sensitive. So are parameter values that are names (`region`, `cpu`, `access`).
+
+A parameter that is a non-negative integer (an address, a size, a count) can be a JSON integer,
+or a string of hex digits after `0x` or `$`: `"0x1478"`, `"$1478"`. Answers always give integers.
+The `id` must be a JSON integer.
 
 ## 3. Responses
 
@@ -90,8 +237,8 @@ A request that failed:
 | `screenshot_failed` | The picture could not be encoded or written. |
 | `invalid_signal` | A condition names a signal the emulator does not have (§6, `emu.run_until`). |
 | `no_cpu` | The CPU asked for is not on the loaded board: the ARM7 of a game without an IGS027A. |
-| `invalid_region` | No memory region of that name holds anything now. |
-| `invalid_range` | The bytes asked for run past the end of the region. |
+| `invalid_region` | No memory region of that name holds anything now, or `memory.write` was given a region it cannot write: a ROM. |
+| `invalid_range` | The bytes asked for, or given to `memory.write`, run past the end of the region. |
 | `capture_running` | `audio.capture_start` while a capture is running. |
 | `capture_not_running` | `audio.capture_stop` with no capture running. |
 | `capture_failed` | The capture's file could not be written. |
@@ -119,7 +266,7 @@ unchanged.
 Takes no parameters.
 
 ```json
-{"id":1,"ok":true,"result":{"version":"devel","game_name":"orlegend","region":"WRLD","total_ticks":844900,"frame":1}}
+{"id":1,"ok":true,"result":{"version":"devel","game_name":"orlegend","region":"WRLD","total_ticks":844900,"frame":1,"paused":false}}
 ```
 
 | Field | Meaning |
@@ -129,9 +276,23 @@ Takes no parameters.
 | `region` | The code of the region the game runs as: the one it was loaded or set with, or the one its image holds. `null` when the image has no regions, or holds a value its table does not name. |
 | `total_ticks` | Master ticks (50 MHz) since the machine was powered up by loading the game; absent before a game is loaded. |
 | `frame` | Frame boundaries passed since then (`emu.run_frames`); absent before a game is loaded. |
+| `paused` | Whether the desktop application's own run is paused (`emu.pause`). Always present; `pgmemu-cli` has no run of its own. |
+| `breakpoint`, `watchpoint` | Present when the last run stopped at one: the same object as in that run's answer (`emu.run_frames`). So a client that attaches to a window that stopped by itself sees where. |
 
 The simulator's other status fields (`running`, ...) are added as the state they describe comes
 to exist, under the simulator's names.
+
+### `emu.pause`, `emu.resume`
+
+`emu.pause` stops the desktop application's own run. `emu.resume` starts it again. Both take no
+parameters and answer `{}`.
+
+- Runs on request (`emu.run_frames`, `emu.run_cycles`, `emu.run_until`, `input.press`) work in
+  both states.
+- `pgmemu-cli` has no run of its own. It runs only on request. There, these only set what
+  `emu.status` says.
+- A breakpoint or a watchpoint that the application's own run reaches also pauses it. The window
+  shows where it stopped. Edit or remove the breakpoint, then `emu.resume`.
 
 ### `emu.load_game` (alias `sim.load_game`)
 
@@ -261,6 +422,30 @@ names that work.
 
 Errors: `invalid_region`, `invalid_range`, `bad_request`.
 
+### `memory.write`
+
+| Param | Meaning |
+|---|---|
+| `region` | `WORK_RAM`, `VIDEO_RAM`, `PALETTE_RAM` or `AUDIO_RAM`. |
+| `address` | Byte offset within the region. |
+| `data_hex` | The bytes, two hex digits each, upper or lower case; at most 1048576 bytes. |
+
+Writes as a debugger does: no bus cycle is made and no device is clocked. The bytes are laid out
+as `memory.read` of the same region reads them.
+
+- The whole range is checked first. So the write happens completely or not at all.
+- The ROMs cannot be written.
+- `AUDIO_RAM` is written at the 68000's time: the Z80 is brought up to it first.
+
+```json
+{"id":4,"method":"memory.write","params":{"region":"WORK_RAM","address":"0x100","data_hex":"deadbeef"}}
+{"id":4,"ok":true,"result":{"region":"WORK_RAM","address":256,"size":4}}
+```
+
+The simulator has no such method.
+
+Errors: `not_loaded`, `invalid_region`, `invalid_range`, `bad_request`.
+
 ### `emu.reset` (alias `sim.reset`)
 
 | Param | Meaning |
@@ -290,7 +475,8 @@ the boundary.
 
 | Field | Meaning |
 |---|---|
-| `reason` | `completed`; `breakpoint` when the 68000 reached a breakpoint first; `watchpoint` when it read or wrote a watched address; `halted` when it halted on a double bus fault. |
+| `reason` | `completed`; `breakpoint` when a CPU reached a breakpoint first; `watchpoint` when the 68000 read or wrote a watched address; `halted` when it halted on a double bus fault. |
+| `breakpoint` | With `reason` `breakpoint` only: `{"cpu", "address"}`, and for the Z80 and the ARM7 `registers`, as `cpu.get_state` gives them, from the moment that CPU reached the breakpoint. |
 | `watchpoint` | With `reason` `watchpoint` only: the access, as `{"address", "access": "read" or "write", "value", "bytes", "pc"}`, `pc` being the instruction that made it. |
 | `ticks_executed` | Master ticks the run took. |
 | `frames_executed` | Frame boundaries it passed. |
@@ -403,14 +589,32 @@ Errors: `not_loaded`, `no_cpu`, `bad_request`.
 | Param | Meaning |
 |---|---|
 | `address` | The instruction address. |
+| `cpu` | `m68k`, the default, `z80`, or `arm7` for the IGS027A's ARM7TDMI. |
 
-A run reaching a breakpoint stops before the instruction and answers `reason` `breakpoint`. The
-next run executes that instruction rather than stopping at it again. `add` and `remove` answer
-`{}`.
+`add` and `remove` answer `{}`. A run that reaches a breakpoint answers `reason` `breakpoint`, and
+`breakpoint` says which (`emu.run_frames`).
+
+- **68000.** The run stops before the instruction. The next run executes that instruction rather
+  than stopping at it again. A breakpoint in code that runs every frame stops every run within a
+  frame; remove it to run on.
+- **Z80 and ARM7.** These CPUs are brought up to the 68000's time, not run beside it. So the run
+  stops after the 68000 instruction during which the CPU reached the breakpoint. The CPU itself is
+  not stopped there: it has run on to the 68000's time. That is the end of one 68000 instruction,
+  or later when the 68000 was waiting: for an interrupt, for sprite DMA, or in reset. The answer's
+  `registers` are as they were at the breakpoint; `cpu.get_state` gives them as they are now. The
+  emulation is the same as without the breakpoint
+  ([0023](../decisions/0023-breakpoints-on-the-caught-up-cpus.md)).
+- While the Z80 or the ARM7 has a breakpoint, runs are slower: both are brought up to the 68000
+  after each of its instructions.
+- A Z80 breakpoint is at a Z80 address, 0 to 0xFFFF. It is reached where the Z80 fetches an
+  instruction's first byte.
+- An ARM7 breakpoint is reached where the ARM begins an instruction, ARM or Thumb.
+
+Errors: `not_loaded`, `no_cpu` (`arm7` on a board without an IGS027A), `bad_request`.
 
 ### `debug.breakpoint.list`
 
-Answers the addresses of the breakpoints, ascending.
+Takes `cpu`, as above. Answers the addresses of that CPU's breakpoints, ascending.
 
 ### `debug.watchpoint.add`, `debug.watchpoint.remove`, `debug.watchpoint.list`
 

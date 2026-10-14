@@ -59,6 +59,36 @@ std::string_view regionName( std::string_view code )
   return name == REGION_NAMES.end() ? code : name->second;
 }
 
+/// Where the last run stopped, from `emu.status`'s answer: empty when it was
+/// not at a breakpoint or a watchpoint.
+std::string stopText( control::Json const& status )
+{
+  if ( status.contains( "breakpoint" ) )
+  {
+    auto const& at = status.at( "breakpoint" );
+    std::string const cpu = at.at( "cpu" ).get<std::string>();
+    std::string_view name = "68000";
+    if ( cpu == "z80" )
+    {
+      name = "Z80";
+    }
+    else if ( cpu == "arm7" )
+    {
+      name = "ARM7";
+    }
+    return fmt::format( "Breakpoint of the {} at ${:x}", name, at.at( "address" ).get<std::uint32_t>() );
+  }
+  if ( status.contains( "watchpoint" ) )
+  {
+    auto const& at = status.at( "watchpoint" );
+    return fmt::format( "Watchpoint: {} of ${:x} at ${:x}",
+                        at.at( "access" ).get<std::string>(),
+                        at.at( "address" ).get<std::uint32_t>(),
+                        at.at( "pc" ).get<std::uint32_t>() );
+  }
+  return {};
+}
+
 } // namespace
 
 std::expected<std::unique_ptr<Application>, std::string> Application::create( Settings settings )
@@ -529,9 +559,12 @@ void Application::drawMenuBar()
   }
   if ( ImGui::BeginMenu( "Emulation" ) )
   {
+    // Paused through the protocol, as an agent pauses it, so that the menu
+    // shows a pause an agent or a breakpoint made too.
+    mPaused = mEmulation->paused();
     if ( ImGui::MenuItem( "Pause", nullptr, &mPaused ) )
     {
-      mEmulation->setPaused( mPaused );
+      static_cast<void>( request( mPaused ? "emu.pause" : "emu.resume" ) );
     }
     if ( ImGui::MenuItem( "Reset" ) )
     {
@@ -751,6 +784,11 @@ void Application::drawStatusWindow()
       auto const& result = response.at( "result" );
       ImGui::Text( "Game: %s", result.at( "game_name" ).get_ref<std::string const&>().c_str() );
       ImGui::Text( "Frame: %lld", static_cast<long long>( result.at( "frame" ).get<std::int64_t>() ) );
+      if ( result.at( "paused" ) == true )
+      {
+        ImGui::TextUnformatted( "Paused" );
+      }
+      ImGui::TextUnformatted( stopText( result ).c_str() );
     }
     else
     {

@@ -46,12 +46,32 @@ struct Arm7Registers
   std::int64_t cycles{};
 };
 
+/// The processors a debugger can stop at.
+enum class Cpu : std::uint8_t
+{
+  M68K,
+  Z80,
+  /// The IGS027A's ARM7TDMI.
+  ARM7
+};
+
+/// The RAMs a debugger can write.
+enum class Ram : std::uint8_t
+{
+  WORK,
+  VIDEO,
+  PALETTE,
+  /// The Z80's.
+  AUDIO
+};
+
 /// Why a run returned.
 enum class StopReason : std::uint8_t
 {
   /// It ran as long as it was asked to.
   COMPLETED,
-  /// The 68000 reached a breakpoint; it has not executed that instruction.
+  /// A processor reached a breakpoint (BreakpointHit). The 68000 has not
+  /// executed that instruction.
   BREAKPOINT,
   /// The 68000 read or wrote a watched address; the instruction that did it
   /// has executed.
@@ -83,6 +103,18 @@ struct WatchpointHit
   std::uint8_t bytes{};
   /// The instruction that made the access.
   std::uint32_t pc{};
+};
+
+/// The breakpoint that ended a run.
+struct BreakpointHit
+{
+  Cpu cpu{};
+  std::uint32_t address{};
+  /// The Z80's or the ARM7's registers as they were at the breakpoint. That
+  /// processor was not stopped there: it ran on to the 68000's time
+  /// (docs/decisions/0023-breakpoints-on-the-caught-up-cpus.md).
+  std::optional<Z80Registers> z80;
+  std::optional<Arm7Registers> arm7;
 };
 
 /// An instruction the 68000 executed, and when it began.
@@ -213,10 +245,20 @@ public:
   /// unchanged, when `state` is not one this build wrote.
   bool loadState( std::span<std::uint8_t const> state );
 
-  /// Instruction addresses a run stops at, before the instruction executes.
-  void addBreakpoint( std::uint32_t address );
-  void removeBreakpoint( std::uint32_t address );
-  [[nodiscard]] std::set<std::uint32_t> const& breakpoints() const;
+  /// Instruction addresses of `cpu` a run stops at. The 68000 stops before
+  /// the instruction executes. The Z80 and the ARM7 are caught up to the
+  /// 68000 rather than run beside it, so the run stops after the 68000
+  /// instruction during which they reached it; while either has breakpoints,
+  /// they are caught up after every 68000 instruction. False, and nothing
+  /// set, when the board has no ARM7.
+  bool addBreakpoint( std::uint32_t address, Cpu cpu = Cpu::M68K );
+  void removeBreakpoint( std::uint32_t address, Cpu cpu = Cpu::M68K );
+  [[nodiscard]] std::set<std::uint32_t> const& breakpoints( Cpu cpu = Cpu::M68K ) const;
+  /// The breakpoint that ended the last run.
+  [[nodiscard]] std::optional<BreakpointHit> const& breakpointHit() const;
+  /// Whether a breakpoint or a watchpoint is set on any processor: a run may
+  /// then end early.
+  [[nodiscard]] bool hasDebugPoints() const;
 
   /// Data accesses of the 68000 that stop a run, after the instruction that
   /// made them. Instruction fetches do not count. One watchpoint per address;
@@ -246,6 +288,11 @@ public:
   [[nodiscard]] std::span<std::uint8_t const> videoRam() const;
   [[nodiscard]] std::span<std::uint8_t const> paletteRam() const;
   [[nodiscard]] std::span<std::uint8_t const> z80Ram() const;
+  /// Writes `bytes` into `ram` from `offset` on, laid out as workRam(),
+  /// videoRam(), paletteRam() and z80Ram() read: as a debugger does, with no
+  /// bus cycle and nothing clocked. False, and nothing written, when the
+  /// bytes run past the RAM's end.
+  bool writeRam( Ram ram, std::size_t offset, std::span<std::uint8_t const> bytes );
 
   /// The last complete frame: 448 by 224 pixels, RGBA, row by row. It is
   /// complete when vertical blank begins, which is just before a frame boundary.

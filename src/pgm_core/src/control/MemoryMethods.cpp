@@ -5,7 +5,9 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <optional>
 #include <string>
+#include <vector>
 
 namespace pgm::control
 {
@@ -29,6 +31,66 @@ std::string toHex( std::span<std::uint8_t const> bytes )
     hex.push_back( DIGITS[byte & 0x0fU] );
   }
   return hex;
+}
+
+/// The bytes `hex` spells, two digits each, or nothing if it spells none.
+std::optional<std::vector<std::uint8_t>> fromHex( std::string const& hex )
+{
+  auto const digit = []( char c ) -> int
+  {
+    if ( c >= '0' && c <= '9' )
+    {
+      return c - '0';
+    }
+    if ( c >= 'a' && c <= 'f' )
+    {
+      return c - 'a' + 10;
+    }
+    if ( c >= 'A' && c <= 'F' )
+    {
+      return c - 'A' + 10;
+    }
+    return -1;
+  };
+  if ( hex.size() % 2 != 0 )
+  {
+    return std::nullopt;
+  }
+  std::vector<std::uint8_t> bytes;
+  bytes.reserve( hex.size() / 2 );
+  for ( std::size_t i = 0; i < hex.size(); i += 2 )
+  {
+    int const high = digit( hex[i] );
+    int const low = digit( hex[i + 1] );
+    if ( high < 0 || low < 0 )
+    {
+      return std::nullopt;
+    }
+    bytes.push_back( static_cast<std::uint8_t>( ( high << 4 ) | low ) );
+  }
+  return bytes;
+}
+
+/// The RAM a region name is, for memory.write.
+std::optional<machine::Ram> ramNamed( std::string_view name )
+{
+  if ( name == "WORK_RAM" )
+  {
+    return machine::Ram::WORK;
+  }
+  if ( name == "VIDEO_RAM" )
+  {
+    return machine::Ram::VIDEO;
+  }
+  if ( name == "PALETTE_RAM" )
+  {
+    return machine::Ram::PALETTE;
+  }
+  if ( name == "AUDIO_RAM" )
+  {
+    return machine::Ram::AUDIO;
+  }
+  return std::nullopt;
 }
 
 } // namespace
@@ -98,6 +160,67 @@ void addMemoryMethods( Dispatcher& dispatcher, Emulator& emulator )
         auto const bytes =
             region->bytes.subspan( static_cast<std::size_t>( *address ), static_cast<std::size_t>( *size ) );
         return Json{ { "region", *name }, { "address", *address }, { "data_hex", toHex( bytes ) } };
+      } );
+
+  dispatcher.add(
+      "memory.write",
+      info( "Writes bytes into a RAM, as a debugger does: no bus cycle is made. The bytes are laid out as memory.read "
+            "reads them; work RAM in 68000 byte order. The whole range is checked first, so the write is made whole "
+            "or not at all.",
+            { { .name = "region",
+                .type = "string",
+                .description = "WORK_RAM, VIDEO_RAM, PALETTE_RAM or AUDIO_RAM. The ROMs cannot be written." },
+              { .name = "address", .type = "integer", .description = "The first byte's offset in the region." },
+              { .name = "data_hex", .type = "string", .description = "The bytes, two hex digits each." } } ),
+      [&emulator]( Json const& params ) -> Outcome
+      {
+        auto const name = requireString( params, "region" );
+        if ( !name )
+        {
+          return std::unexpected( name.error() );
+        }
+        auto const address = requireUnsigned( params, "address" );
+        if ( !address )
+        {
+          return std::unexpected( address.error() );
+        }
+        auto const hex = requireString( params, "data_hex" );
+        if ( !hex )
+        {
+          return std::unexpected( hex.error() );
+        }
+        auto const bytes = fromHex( *hex );
+        if ( !bytes )
+        {
+          return std::unexpected( badRequest( "data_hex must be pairs of hex digits" ) );
+        }
+        if ( bytes->size() > MAX_READ )
+        {
+          return std::unexpected(
+              badRequest( fmt::format( "{} bytes is above the limit of {} bytes", bytes->size(), MAX_READ ) ) );
+        }
+
+        machine::Machine* const machine = emulator.machine();
+        if ( machine == nullptr )
+        {
+          return std::unexpected( Error{ .code = "not_loaded", .message = "No game is loaded" } );
+        }
+        auto const ram = ramNamed( *name );
+        if ( !ram )
+        {
+          return std::unexpected(
+              Error{ .code = "invalid_region",
+                     .message = fmt::format(
+                         "{} cannot be written; memory.write writes WORK_RAM, VIDEO_RAM, PALETTE_RAM and AUDIO_RAM",
+                         *name ) } );
+        }
+        if ( !machine->writeRam( *ram, static_cast<std::size_t>( *address ), *bytes ) )
+        {
+          return std::unexpected( Error{
+              .code = "invalid_range",
+              .message = fmt::format( "{} bytes at {} run past the end of {}", bytes->size(), *address, *name ) } );
+        }
+        return Json{ { "region", *name }, { "address", *address }, { "size", bytes->size() } };
       } );
 }
 

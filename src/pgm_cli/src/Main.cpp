@@ -18,6 +18,7 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
+#include <charconv>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -26,7 +27,10 @@
 #include <fstream>
 #include <iostream>
 #include <mutex>
+#include <sstream>
 #include <string>
+#include <string_view>
+#include <system_error>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -108,6 +112,104 @@ int benchmark( pgm::Settings settings, std::string const& game, std::int64_t fra
   return 0;
 }
 
+/// Loads `game`, a set name or the path of a .pgm, before any request is
+/// answered; false, with the reason on stderr, when it cannot be loaded.
+bool loadAtStart( pgm::Emulator& emulator, std::string const& game )
+{
+  bool const isPath = game.find_first_of( "/.\\" ) != std::string::npos;
+  auto const loaded = isPath ? emulator.loadGameFromFile( game ) : emulator.loadGameByName( game );
+  if ( !loaded )
+  {
+    std::cerr << "pgmemu-cli: " << loaded.error().message << '\n';
+    return false;
+  }
+  return true;
+}
+
+/// `answer` with the build's version written `devel`, as a transcript holds
+/// it, so that any build checks a transcript alike.
+std::string asRecorded( std::string answer )
+{
+  std::string const version{ pgm::versionString() };
+  for ( std::size_t at = answer.find( version ); at != std::string::npos; at = answer.find( version, at ) )
+  {
+    answer.replace( at, version.size(), "devel" );
+    at += 5;
+  }
+  return answer;
+}
+
+/// Answers the requests of the transcript at `path`, one a line, as JSON
+/// lines or as MCP messages, and prints the answers; or, given `expected`,
+/// compares them with its lines (docs/spec/control-protocol.md §1).
+int runTranscript( pgm::control::Dispatcher const& dispatcher,
+                   std::filesystem::path const& path,
+                   bool mcp,
+                   std::filesystem::path const& expected )
+{
+  std::ifstream requests{ path };
+  if ( !requests )
+  {
+    std::cerr << "pgmemu-cli: cannot read " << path.string() << '\n';
+    return 2;
+  }
+  pgm::server::JsonLinesServer const lines{ dispatcher };
+  pgm::server::McpServer mcpServer{ dispatcher };
+  std::vector<std::string> answers;
+  std::string line;
+  while ( std::getline( requests, line ) )
+  {
+    if ( !line.empty() && line.back() == '\r' )
+    {
+      line.pop_back();
+    }
+    if ( line.empty() || line.starts_with( '#' ) )
+    {
+      continue;
+    }
+    if ( !mcp )
+    {
+      answers.push_back( asRecorded( lines.handleLine( line ) ) );
+    }
+    else if ( auto answer = mcpServer.handleLine( line ) )
+    {
+      answers.push_back( asRecorded( std::move( *answer ) ) );
+    }
+  }
+
+  if ( expected.empty() )
+  {
+    for ( std::string const& answer : answers )
+    {
+      std::cout << answer << '\n';
+    }
+    return 0;
+  }
+  std::ifstream file{ expected };
+  std::vector<std::string> recorded;
+  while ( std::getline( file, line ) )
+  {
+    if ( !line.empty() && line.back() == '\r' )
+    {
+      line.pop_back();
+    }
+    recorded.push_back( line );
+  }
+  for ( std::size_t i = 0; i < std::max( answers.size(), recorded.size() ); ++i )
+  {
+    std::string const got = i < answers.size() ? answers[i] : "(no answer)";
+    std::string const want = i < recorded.size() ? recorded[i] : "(no answer)";
+    if ( got != want )
+    {
+      std::cout << fmt::format(
+          "{}: answer {} differs\n  expected: {}\n  got:      {}\n", path.filename().string(), i + 1, want, got );
+      return 1;
+    }
+  }
+  std::cout << fmt::format( "{}: {} answers match\n", path.filename().string(), answers.size() );
+  return 0;
+}
+
 /// Prints what `emu.cartridge_info` would answer about the file at `path`.
 int printInfo( std::filesystem::path const& path )
 {
@@ -144,9 +246,7 @@ int run( int argc, char** argv )
                       serverSpec,
                       "Answer JSON-lines requests: on stdin and stdout, or with tcp:PORT on 127.0.0.1:PORT until "
                       "the process is ended" )
-          ->expected( 0, 1 )
-          ->check( []( std::string const& value )
-                   { return value.starts_with( "tcp:" ) ? std::string{} : std::string{ "expected tcp:PORT" }; } );
+          ->expected( 0, 1 );
   bool mcp = false;
   auto* const mcpFlag =
       app.add_flag( "--mcp", mcp, "Serve the Model Context Protocol on stdio, for an agent" )->excludes( serverFlag );
@@ -174,8 +274,49 @@ int run( int argc, char** argv )
       ->check( CLI::ExistingFile )
       ->excludes( serverFlag )
       ->excludes( mcpFlag );
+  std::filesystem::path transcript;
+  auto* const transcriptOption =
+      app.add_option( "--transcript",
+                      transcript,
+                      "Answer the requests in a file, one a line (MCP messages with --mcp), and print the answers" )
+          ->check( CLI::ExistingFile )
+          ->excludes( serverFlag )
+          ->excludes( batchOption )
+          ->excludes( benchmarkOption );
+  std::filesystem::path expected;
+  app.add_option( "--expect", expected, "With --transcript: compare the answers with this file's lines instead" )
+      ->check( CLI::ExistingFile )
+      ->needs( transcriptOption );
+  std::string game;
+  app.add_option( "game",
+                  game,
+                  "With --server, --mcp or --transcript: a game to load before the first request, by set name (pgm "
+                  "for the BIOS alone) or by the path of a .pgm" );
 
   CLI11_PARSE( app, argc, argv );
+
+  // --server's value may be left out, so a game right after it is taken for
+  // its value: one that is not tcp:PORT is the game.
+  if ( !serverSpec.empty() && !serverSpec.starts_with( "tcp:" ) )
+  {
+    if ( !game.empty() )
+    {
+      std::cerr << "pgmemu-cli: --server: expected tcp:PORT, not " << serverSpec << '\n';
+      return 1;
+    }
+    game = std::exchange( serverSpec, {} );
+  }
+  std::uint16_t port = 0;
+  if ( !serverSpec.empty() )
+  {
+    std::string_view const digits = std::string_view{ serverSpec }.substr( 4 );
+    auto const [end, error] = std::from_chars( digits.data(), digits.data() + digits.size(), port );
+    if ( digits.empty() || error != std::errc{} || end != digits.data() + digits.size() )
+    {
+      std::cerr << "pgmemu-cli: --server: expected tcp:PORT, a port from 0 to 65535, not " << serverSpec << '\n';
+      return 1;
+    }
+  }
 
   if ( !info.empty() )
   {
@@ -196,7 +337,7 @@ int run( int argc, char** argv )
   }
 
   bool const server = serverFlag->count() > 0;
-  if ( !server && !mcp )
+  if ( !server && !mcp && transcript.empty() )
   {
     std::cerr << app.help();
     return 1;
@@ -204,6 +345,14 @@ int run( int argc, char** argv )
 
   pgm::Emulator emulator{ std::move( settings ) };
   pgm::control::Dispatcher const dispatcher{ emulator };
+  if ( !game.empty() && !loadAtStart( emulator, game ) )
+  {
+    return 1;
+  }
+  if ( !transcript.empty() )
+  {
+    return runTranscript( dispatcher, transcript, mcp, expected );
+  }
   if ( mcp )
   {
     pgm::server::McpServer transport{ dispatcher };
@@ -216,7 +365,7 @@ int run( int argc, char** argv )
     // Connections are served on threads of their own; the dispatcher answers
     // one request at a time.
     std::mutex oneAtATime;
-    pgm::server::TcpLineServer const transport{ static_cast<std::uint16_t>( std::stoul( serverSpec.substr( 4 ) ) ),
+    pgm::server::TcpLineServer const transport{ port,
                                                 [&]( pgm::control::Json const& request )
                                                 {
                                                   std::scoped_lock const lock{ oneAtATime };

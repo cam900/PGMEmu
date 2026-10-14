@@ -80,3 +80,17 @@ foreach( script IN LISTS regression_scripts )
   set_tests_properties( "regression.${name}" PROPERTIES LABELS regression SKIP_RETURN_CODE 77 )
 endforeach()
 
+# The control protocol's transcripts: each one's requests answered by
+# pgmemu-cli --transcript, with no BIOS and no game, and compared with the
+# answers recorded beside it (docs/spec/control-protocol.md §1).
+foreach( transcript IN ITEMS lines mcp )
+  set( transport )
+  if( transcript STREQUAL "mcp" )
+    set( transport --mcp )
+  endif()
+  add_test( NAME "control.${transcript}"
+            COMMAND pgm_cli --transcript "control/${transcript}.jsonl" ${transport}
+                    --expect "control/${transcript}.expect"
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" )
+  set_tests_properties( "control.${transcript}" PROPERTIES LABELS control )
+endforeach()

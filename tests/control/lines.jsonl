@@ -1,0 +1,27 @@
+# The control protocol as JSON lines (docs/spec/control-protocol.md), with no BIOS and no game:
+# framing, errors and the methods that answer without a machine. lines.expect holds the answers.
+{"id":1,"method":"emu.status","params":{}}
+{"id":2,"method":"sim.status"}
+not json
+[1,2]
+{"method":"emu.status"}
+{"id":-1,"method":"emu.status"}
+{"id":"0x5","method":"emu.status"}
+{"id":3}
+{"id":4,"method":"emu.status","params":[]}
+{"id":5,"method":"emu.nonsense"}
+{"id":6,"method":"emu.load_game","params":{"name":"orlegend"}}
+{"id":7,"method":"emu.load_game","params":{"name":"orlegend","path":"orlegend.pgm"}}
+{"id":8,"method":"emu.run_frames","params":{"count":60}}
+{"id":9,"method":"memory.list_regions"}
+{"id":10,"method":"memory.read","params":{"region":"WORK_RAM","address":"0x1478","size":4}}
+{"id":11,"method":"memory.read","params":{"region":"WORK_RAM","address":"$1478","size":4}}
+{"id":12,"method":"memory.read","params":{"region":"WORK_RAM","address":"1478","size":4}}
+{"id":13,"method":"memory.write","params":{"region":"WORK_RAM","address":0,"data_hex":"0g"}}
+{"id":14,"method":"memory.write","params":{"region":"WORK_RAM","address":0,"data_hex":"abc"}}
+{"id":15,"method":"memory.write","params":{"region":"WORK_RAM","address":"0x100","data_hex":"deadbeef"}}
+{"id":16,"method":"debug.breakpoint.add","params":{"address":"0x1000","cpu":"z80"}}
+{"id":17,"method":"emu.pause"}
+{"id":18,"method":"emu.status"}
+{"id":19,"method":"emu.resume"}
+{"id":20,"method":"emu.status"}

@@ -1,0 +1,25 @@
+{"id":1,"ok":true,"result":{"version":"devel","game_name":null,"region":null,"paused":false}}
+{"id":2,"ok":true,"result":{"version":"devel","game_name":null,"region":null,"paused":false}}
+{"id":0,"ok":false,"error":{"code":"bad_request","message":"Request is not valid JSON"}}
+{"id":0,"ok":false,"error":{"code":"bad_request","message":"Request must be a JSON object"}}
+{"id":0,"ok":false,"error":{"code":"bad_request","message":"Missing or invalid field: id"}}
+{"id":0,"ok":false,"error":{"code":"bad_request","message":"Missing or invalid field: id"}}
+{"id":0,"ok":false,"error":{"code":"bad_request","message":"Missing or invalid field: id"}}
+{"id":3,"ok":false,"error":{"code":"bad_request","message":"Missing or invalid field: method"}}
+{"id":4,"ok":false,"error":{"code":"bad_request","message":"Field params must be an object"}}
+{"id":5,"ok":false,"error":{"code":"unknown_method","message":"Unknown method: emu.nonsense"}}
+{"id":6,"ok":false,"error":{"code":"unknown_game","message":"no orlegend.pgm in "}}
+{"id":7,"ok":false,"error":{"code":"bad_request","message":"Exactly one of name and path must be given"}}
+{"id":8,"ok":false,"error":{"code":"not_loaded","message":"No game is loaded"}}
+{"id":9,"ok":true,"result":[]}
+{"id":10,"ok":false,"error":{"code":"invalid_region","message":"No memory region WORK_RAM is loaded"}}
+{"id":11,"ok":false,"error":{"code":"invalid_region","message":"No memory region WORK_RAM is loaded"}}
+{"id":12,"ok":false,"error":{"code":"bad_request","message":"Missing or invalid field: address"}}
+{"id":13,"ok":false,"error":{"code":"bad_request","message":"data_hex must be pairs of hex digits"}}
+{"id":14,"ok":false,"error":{"code":"bad_request","message":"data_hex must be pairs of hex digits"}}
+{"id":15,"ok":false,"error":{"code":"not_loaded","message":"No game is loaded"}}
+{"id":16,"ok":false,"error":{"code":"not_loaded","message":"No game is loaded"}}
+{"id":17,"ok":true,"result":{}}
+{"id":18,"ok":true,"result":{"version":"devel","game_name":null,"region":null,"paused":true}}
+{"id":19,"ok":true,"result":{}}
+{"id":20,"ok":true,"result":{"version":"devel","game_name":null,"region":null,"paused":false}}

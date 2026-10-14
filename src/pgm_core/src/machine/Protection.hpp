@@ -56,6 +56,11 @@ public:
     return nullptr;
   }
 
+  [[nodiscard]] virtual Igs027a* igs027a()
+  {
+    return nullptr;
+  }
+
   /// Names its state for a save state (StateArchive.hpp), in each direction.
   virtual void serialize( StateWriter& archive ) = 0;
   virtual void serialize( StateReader& archive ) = 0;

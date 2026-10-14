@@ -35,8 +35,9 @@ Error loadError( LoadFailure const& failure )
 void addEmuMethods( Dispatcher& dispatcher, Emulator& emulator )
 {
   dispatcher.add( "emu.status",
-                  info( "The emulator's version, the loaded game, the region it runs as, and the emulated time: "
-                        "master ticks (50 MHz) and frames since power-up." ),
+                  info( "The emulator's version, the loaded game, the region it runs as, the emulated time (master "
+                        "ticks of 50 MHz and frames since power-up), whether the window's own run is paused, and the "
+                        "breakpoint or watchpoint the last run stopped at." ),
                   [&emulator]( Json const& /*params*/ ) -> Outcome
                   {
                     auto const game = emulator.gameName();
@@ -48,6 +49,11 @@ void addEmuMethods( Dispatcher& dispatcher, Emulator& emulator )
                     {
                       status["total_ticks"] = machine::masterTicks( machine->now() );
                       status["frame"] = machine->frame();
+                    }
+                    status["paused"] = emulator.paused();
+                    if ( machine::Machine const* machine = emulator.machine() )
+                    {
+                      status.update( debugStopOf( *machine ) );
                     }
                     return status;
                   } );
@@ -157,6 +163,24 @@ void addEmuMethods( Dispatcher& dispatcher, Emulator& emulator )
                       return std::unexpected( Error{ .code = "no_cartridge", .message = "No cartridge is loaded" } );
                     }
                     return describe( *cartridge );
+                  } );
+
+  dispatcher.add( "emu.pause",
+                  info( "Pauses the game where it runs by itself: in the desktop application, which then runs it "
+                        "only on request. A breakpoint or a watchpoint its own run reaches pauses it too. "
+                        "pgmemu-cli runs only on request anyway." ),
+                  [&emulator]( Json const& /*params*/ ) -> Outcome
+                  {
+                    emulator.setPaused( true );
+                    return Json::object();
+                  } );
+
+  dispatcher.add( "emu.resume",
+                  info( "Lets the game run by itself again, where it does: in the desktop application." ),
+                  [&emulator]( Json const& /*params*/ ) -> Outcome
+                  {
+                    emulator.setPaused( false );
+                    return Json::object();
                   } );
 
   dispatcher.alias( "sim.status", "emu.status" );

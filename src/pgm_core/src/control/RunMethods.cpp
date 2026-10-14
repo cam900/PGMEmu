@@ -41,20 +41,26 @@ std::string_view reasonName( machine::StopReason reason )
   return "error";
 }
 
+std::string_view cpuName( machine::Cpu cpu )
+{
+  switch ( cpu )
+  {
+  case machine::Cpu::Z80:
+    return "z80";
+  case machine::Cpu::ARM7:
+    return "arm7";
+  case machine::Cpu::M68K:
+    break;
+  }
+  return "m68k";
+}
+
 Json resultOf( machine::RunResult const& run, machine::Machine const& machine )
 {
   Json result{ { "reason", reasonName( run.reason ) },
                { "ticks_executed", run.ticks },
                { "frames_executed", run.frames } };
-  if ( run.reason == machine::StopReason::WATCHPOINT && machine.watchpointHit() )
-  {
-    machine::WatchpointHit const& hit = *machine.watchpointHit();
-    result["watchpoint"] = Json{ { "address", hit.address },
-                                 { "access", hit.write ? "write" : "read" },
-                                 { "value", hit.value },
-                                 { "bytes", hit.bytes },
-                                 { "pc", hit.pc } };
-  }
+  result.update( debugStopOf( machine ) );
   return result;
 }
 
@@ -220,6 +226,33 @@ std::expected<Predicate, Error> parseCondition( Json const& condition, machine::
 
 } // namespace
 
+Json debugStopOf( machine::Machine const& machine )
+{
+  Json stop = Json::object();
+  if ( auto const& hit = machine.watchpointHit() )
+  {
+    stop["watchpoint"] = Json{ { "address", hit->address },
+                               { "access", hit->write ? "write" : "read" },
+                               { "value", hit->value },
+                               { "bytes", hit->bytes },
+                               { "pc", hit->pc } };
+  }
+  else if ( auto const& at = machine.breakpointHit() )
+  {
+    Json breakpoint{ { "cpu", cpuName( at->cpu ) }, { "address", at->address } };
+    if ( at->z80 )
+    {
+      breakpoint["registers"] = z80Json( *at->z80 );
+    }
+    else if ( at->arm7 )
+    {
+      breakpoint["registers"] = arm7Json( *at->arm7 );
+    }
+    stop["breakpoint"] = std::move( breakpoint );
+  }
+  return stop;
+}
+
 void addRunMethods( Dispatcher& dispatcher, Emulator& emulator )
 {
   dispatcher.add(
@@ -244,7 +277,7 @@ void addRunMethods( Dispatcher& dispatcher, Emulator& emulator )
   dispatcher.add(
       "emu.run_frames",
       info( "Runs until some frame boundaries have passed, where vblank begins. Stops early at a breakpoint or a "
-            "watchpoint.",
+            "watchpoint; the answer then says which.",
             { { .name = "count", .type = "integer", .description = "Frames to run; 60 is about a second." } } ),
       [&emulator]( Json const& params ) -> Outcome
       {

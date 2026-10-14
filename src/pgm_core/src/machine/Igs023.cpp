@@ -861,6 +861,16 @@ std::span<std::uint8_t const> Igs023::palette() const
   return mPalette;
 }
 
+std::span<std::uint8_t> Igs023::vramForDebugger()
+{
+  return mVram;
+}
+
+std::span<std::uint8_t> Igs023::paletteForDebugger()
+{
+  return mPalette;
+}
+
 int Igs023::line( Time now )
 {
   return static_cast<int>( ( dotsAt( now ) / DOTS_PER_LINE ) % LINES_PER_FRAME );

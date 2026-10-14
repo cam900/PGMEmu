@@ -55,6 +55,16 @@ Settings const& Emulator::settings() const
   return mSettings;
 }
 
+bool Emulator::paused() const
+{
+  return mPaused;
+}
+
+void Emulator::setPaused( bool paused )
+{
+  mPaused = paused;
+}
+
 void Emulator::setBiosSources( std::vector<std::filesystem::path> sources )
 {
   mSettings.biosSources = std::move( sources );

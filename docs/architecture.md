@@ -66,6 +66,9 @@ its clock have passed instead of being stepped through each one.
    window, a bus request, protection shared RAM, and a video register read such as the line
    counter.
 3. At the end of every slice, all of them are brought up to the present.
+4. While the Z80 or the ARM7 has a breakpoint, both are also brought up after every 68000
+   instruction, so that a run stops soon after one of them reaches it. This changes when they
+   are caught up, not what they do ([0023](decisions/0023-breakpoints-on-the-caught-up-cpus.md)).
 
 The alternative, interleaving every chip in fixed small quanta, costs more and is still less
 exact. What PGM games depend on is the *order* of cross-CPU communication, and catch-up on
@@ -136,10 +139,11 @@ The RTL simulator's own `.pgm` loader targets version 0x0010 and is not a refere
 Every capability is a method of `control::Dispatcher`
 ([0005](decisions/0005-one-control-api.md)). The method groups follow the RTL simulator:
 
-- `emu.*` (alias `sim.*`): load, reset, run frames or cycles, run until a condition
-- `memory.*`
+- `emu.*` (alias `sim.*`): load, reset, run frames or cycles, run until a condition, pause and
+  resume the application's own run
+- `memory.*`: read any region, write the RAMs
 - `cpu.*`: for `m68k`, `z80` and `arm7`
-- `debug.*`: breakpoints, watchpoints, trace
+- `debug.*`: breakpoints for `m68k`, `z80` and `arm7`, watchpoints, trace
 - `video.*`: screenshot, registers, decoded sprites, layers, tiles
 - `audio.*`
 - `input.*`
@@ -156,7 +160,9 @@ so the person at the GUI watches what the agent does.
 
 `pgmemu-cli --batch` runs batch scripts ([spec/batch.md](spec/batch.md)): requests of the
 protocol, with checkpoints at which the picture, the RAMs and the sound are summed, run
-unthrottled. They are the building block of the golden-frame tests.
+unthrottled. They are the building block of the golden-frame tests. `pgmemu-cli --transcript`
+answers recorded requests and compares the answers with recorded ones; the protocol's own tests
+are such transcripts ([spec/control-protocol.md](spec/control-protocol.md#transcripts)).
 
 ## The desktop frontend
 
@@ -184,7 +190,9 @@ second, whatever the display's refresh rate. The sound goes to an SDL audio stre
 own rate; SDL resamples it to the device's, and dynamic rate control pulls that resampling by up
 to half a percent to keep the queue near its target as the two clocks drift. Without an audio
 device the clock paces alone. Fast-forward, pause, frame step, rewind and run-ahead
-([0019](decisions/0019-run-ahead.md)) sit on top of it.
+([0019](decisions/0019-run-ahead.md)) sit on top of it. The pause is the emulator's own flag,
+which `emu.pause` sets for an agent and the menu sets through the same request; a breakpoint or a
+watchpoint that a frame reaches sets it too, so the window stops where the debugger asked.
 
 **Input:**
 

@@ -47,7 +47,11 @@ Json Dispatcher::handle( Json const& request ) const
     return errorResponse( 0, badRequest( "Request must be a JSON object" ) );
   }
 
-  auto const id = requireUnsigned( request, "id" );
+  // An id is a number: the hex strings parameters may be do not apply to it.
+  auto const idField = request.find( "id" );
+  auto const id = idField != request.end() && idField->is_number_integer()
+                      ? requireUnsigned( request, "id" )
+                      : std::unexpected( badRequest( "Missing or invalid field: id" ) );
   if ( !id )
   {
     return errorResponse( 0, id.error() );
