@@ -832,7 +832,19 @@ void Application::drawSoundWindow()
     if ( ImGui::BeginTable( "voices", 13, flags ) )
     {
       ImGui::TableSetupScrollFreeze( 0, 1 );
-      for ( char const* heading : { "#", "conf", "ctl", "fc", "address", "osc start", "osc end", "volume", "vol start", "vol end", "vol incr", "pan", "vctrl" } )
+      for ( char const* heading : { "#",
+                                    "conf",
+                                    "ctl",
+                                    "fc",
+                                    "address",
+                                    "osc start",
+                                    "osc end",
+                                    "volume",
+                                    "vol start",
+                                    "vol end",
+                                    "vol incr",
+                                    "pan",
+                                    "vctrl" } )
       {
         ImGui::TableSetupColumn( heading );
       }
